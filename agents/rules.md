@@ -17,7 +17,7 @@ These apply to every change, by any person or agent.
 
 ## Licensing and dependencies
 
-- The repo must carry an open-source license file at the root. Don't remove or change it without both people agreeing.
+- The repo is MIT licensed ([LICENSE](../LICENSE)). Don't remove or change it without both people agreeing.
 - Only add dependencies with licenses compatible with open source (MIT, Apache-2.0, BSD, ISC and similar). Check before adding anything unusual. AG Grid Community is MIT; AG Grid Enterprise features need a license key, so ask before using them.
 - Don't copy code from sources whose license we can't comply with.
 

@@ -8,3 +8,5 @@ Team entry by Matei and Robert for the [PayPal AI Hackathon](https://paypalaihac
 Planning notes live in [`docs/`](docs/).
 
 Guidance for AI coding agents (Claude Code, Antigravity) lives in [`agents/`](agents/).
+
+Licensed under the [MIT License](LICENSE).
