@@ -6,3 +6,5 @@ Team entry by Matei and Robert for the [PayPal AI Hackathon](https://paypalaihac
 - Required: PayPal developer platform (sandbox) + an AI tool, a public repo with an open-source license, setup and run instructions, and a demo video under 3 minutes on YouTube.
 
 Planning notes live in [`docs/`](docs/).
+
+Guidance for AI coding agents (Claude Code, Antigravity) lives in [`agents/`](agents/).
