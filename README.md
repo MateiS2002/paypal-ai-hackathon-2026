@@ -1,3 +1,5 @@
+![PayPal AI Hackathon](assets/banner.png)
+
 # PayPal AI Hackathon 2026
 
 Team entry by Matei and Robert for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com) on Devpost.
