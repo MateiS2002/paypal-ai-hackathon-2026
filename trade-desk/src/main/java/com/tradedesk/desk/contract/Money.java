@@ -14,6 +14,10 @@ public record Money(@JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amou
 	public Money {
 		Objects.requireNonNull(amount, "amount");
 		Objects.requireNonNull(currency, "currency");
+		// Matches the schema's pattern: plain notation, at most 4 decimal places.
+		if (amount.scale() < 0 || amount.scale() > 4) {
+			throw new IllegalArgumentException("amount must have 0 to 4 decimal places, got " + amount);
+		}
 		if (!currency.matches("[A-Z]{3}")) {
 			throw new IllegalArgumentException("currency must be an ISO 4217 code, got " + currency);
 		}

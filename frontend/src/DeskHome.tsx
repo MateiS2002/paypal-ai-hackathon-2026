@@ -18,14 +18,17 @@ const columns: ColDef<LedgerRow>[] = [
 
 export default function DeskHome({ desk, user, onLogout }: Props) {
   const [live, setLive] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => subscribe(desk, () => setLive(true), setLive), [desk])
 
   const signOut = async () => {
+    // Only leave the dashboard once the server has really ended the session.
     try {
       await logout(desk)
-    } finally {
       onLogout()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -48,6 +51,7 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
           </button>
         </div>
       </div>
+      {error && <p className="error">{error}</p>}
       <h2>Ledger</h2>
       <div className="grid">
         <AgGridReact<LedgerRow>

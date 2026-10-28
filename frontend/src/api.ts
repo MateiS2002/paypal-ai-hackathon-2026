@@ -55,7 +55,8 @@ export async function login(desk: DeskId, username: string, password: string): P
 }
 
 export async function logout(desk: DeskId): Promise<void> {
-  await post(desk, '/logout')
+  const res = await post(desk, '/logout')
+  if (!res.ok) throw new Error(`Logout failed (${res.status})`)
 }
 
 /** Opens the desk's SSE stream. Call the returned function to close it. */

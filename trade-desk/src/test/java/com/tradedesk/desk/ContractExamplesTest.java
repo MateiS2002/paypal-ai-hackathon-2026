@@ -48,4 +48,12 @@ class ContractExamplesTest {
 		assertThatThrownBy(() -> new Money(BigDecimal.ONE, "usd")).isInstanceOf(IllegalArgumentException.class);
 	}
 
+	@Test
+	void moneyRejectsAmountsTheSchemaRejects() {
+		assertThatThrownBy(() -> new Money(new BigDecimal("1E+3"), "USD"))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Money(new BigDecimal("1.23456"), "USD"))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
 }

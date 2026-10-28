@@ -29,7 +29,7 @@ Everything runs against the **PayPal sandbox** only. Developer setup (JDK, Node,
 | [`trade-desk/`](trade-desk/) | Spring Boot app, one container per business (café, roaster, simulated suppliers) |
 | [`registry/`](registry/) | Spring Boot app: network registry, agent card checks, supplier search |
 | [`frontend/`](frontend/) | Vite + React + AG Grid Community, served by nginx |
-| [`web/`](web/) | nginx: static landing pages and agent cards for the fictional companies |
+| [`web/`](web/) | nginx: static landing pages for the fictional companies (placeholder now; pages and agent cards arrive in S4) |
 | [`contracts/`](contracts/) | JSON Schemas, API routes, ports and env variables shared by all services |
 | [`postgres/`](postgres/) | Init script: one database per service |
 
