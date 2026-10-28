@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trade-desk.test/contracts/envelope.schema.json",
+  "title": "Agent message envelope",
+  "description": "Every desk-to-desk message. Slices define the body for each type. The receiver treats the whole envelope as untrusted input until it has parsed and validated the body.",
+  "type": "object",
+  "required": ["messageId", "type", "from", "to", "conversationId", "sentAt", "body"],
+  "additionalProperties": false,
+  "properties": {
+    "messageId": { "type": "string", "format": "uuid" },
+    "type": {
+      "type": "string",
+      "enum": ["rfq", "quote", "counter", "accept", "reject", "invoice", "invoice.status"]
+    },
+    "from": { "$ref": "#/$defs/domain", "description": "Sender desk's domain, for example cafe.test." },
+    "to": { "$ref": "#/$defs/domain", "description": "Receiver desk's domain, for example roaster.test." },
+    "conversationId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Shared by every message about one need (RFQ), from the RFQ to the invoice status."
+    },
+    "sentAt": { "type": "string", "format": "date-time", "description": "UTC, ISO 8601." },
+    "body": { "type": "object", "description": "Defined per type by the slice that introduces it." }
+  },
+  "$defs": {
+    "domain": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+    }
+  }
+}

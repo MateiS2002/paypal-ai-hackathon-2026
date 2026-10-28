@@ -1,0 +1,1 @@
+-- Baseline for the registry database. S4 adds businesses and agent cards, S5 adds fingerprints.

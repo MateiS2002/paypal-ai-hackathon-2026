@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: registry
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/registry}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${POSTGRES_PASSWORD}
+  flyway:
+    locations: classpath:db/migration
+  security:
+    user:
+      # No human users yet; a random password keeps Boot from logging a generated one we might paste somewhere.
+      password: ${random.uuid}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

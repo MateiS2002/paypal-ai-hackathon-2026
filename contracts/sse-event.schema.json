@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trade-desk.test/contracts/sse-event.schema.json",
+  "title": "Desk UI event",
+  "description": "The data of one event on a desk's GET /api/events stream. Types are listed in desk-api.md.",
+  "type": "object",
+  "required": ["type", "data"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "examples": ["desk.connected", "invoice.updated", "quote.received", "approval.needed"]
+    },
+    "data": { "type": "object" }
+  }
+}

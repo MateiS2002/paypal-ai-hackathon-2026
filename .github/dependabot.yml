@@ -8,19 +8,21 @@ updates:
       actions:
         patterns: ["*"]
 
-  # Uncomment once the skeleton lands (adjust directories to match):
-  # - package-ecosystem: maven
-  #   directories: ["/trade-desk", "/registry"]
-  #   schedule:
-  #     interval: weekly
-  #   groups:
-  #     spring:
-  #       patterns: ["org.springframework*"]
-  # - package-ecosystem: npm
-  #   directory: /frontend
-  #   schedule:
-  #     interval: weekly
-  # - package-ecosystem: docker
-  #   directory: /
-  #   schedule:
-  #     interval: weekly
+  - package-ecosystem: maven
+    directories: ["/trade-desk", "/registry"]
+    schedule:
+      interval: weekly
+    groups:
+      spring:
+        patterns: ["org.springframework*"]
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      frontend:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directories: ["/trade-desk", "/registry", "/frontend", "/web"]
+    schedule:
+      interval: weekly

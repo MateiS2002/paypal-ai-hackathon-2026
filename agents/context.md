@@ -12,7 +12,30 @@ Stack: Java 21, Spring Boot 4.1, Spring AI 2.0 (OpenAI API, model set by `OPENAI
 
 The security model (money rules in Java, agent keys and tokens, untrusted LLM output) is a hard rule: see [rules.md](rules.md#security-model).
 
-Ownership is dynamic and decided per task: Matei leads backend and agents, Robert leans QA and picks up development tasks as he goes. Folder layout and run commands get added here once the skeleton lands.
+Ownership is dynamic and decided per task: Matei leads backend and agents, Robert leans QA and picks up development tasks as he goes.
+
+## Folder layout and commands
+
+Skeleton from slice S0 ([spec](../docs/slices/s00-skeleton-and-contracts.md)):
+
+```text
+trade-desk/     Spring Boot app, one container per business (cafe, roaster, simulated suppliers via DESK_* env)
+registry/       Spring Boot app: enrollment, agent card checks, supplier search, tokens, fingerprints
+frontend/       Vite + React + AG Grid Community, built into nginx; proxies /cafe/api/** and /roaster/api/**
+web/            nginx: static landing pages and agent cards
+contracts/      JSON Schemas, desk-api.md, ports and env variables (the shared contracts)
+postgres/       init script: one database per service
+docker-compose.yml, .env.example
+```
+
+| Task | Command |
+| --- | --- |
+| Run everything | `cp .env.example .env && docker compose up --build --wait`, then <http://localhost:8080> |
+| Java tests | `./mvnw test` in `trade-desk/` or `registry/` |
+| Frontend dev server | `npm install && npm run dev` in `frontend/` (proxies to the desks on 8081 and 8082) |
+| Frontend checks | `npm run build && npm run lint` in `frontend/` |
+
+Shared contracts (keep in sync, change in their own small PR first): [contracts/README.md](../contracts/README.md) for ports and env variables, [envelope.schema.json](../contracts/envelope.schema.json) for desk-to-desk messages, [money.schema.json](../contracts/money.schema.json), [desk-api.md](../contracts/desk-api.md) for frontend-to-desk routes and SSE events. Laptop setup: [docs/local-setup.md](../docs/local-setup.md).
 
 ## Submission requirements (missing any of these fails judging stage 1)
 

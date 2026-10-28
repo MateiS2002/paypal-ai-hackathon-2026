@@ -28,3 +28,7 @@ Thumbs.db
 
 # Personal agent settings
 .claude/settings.local.json
+
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar

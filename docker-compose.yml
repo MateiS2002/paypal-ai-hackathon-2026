@@ -1,0 +1,158 @@
+# Everything a judge needs: cp .env.example .env, then docker compose up --wait
+# Ports are bound to 127.0.0.1 only. Port map and variables: contracts/README.md
+
+x-spring-healthcheck: &spring-healthcheck
+  test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+  interval: 5s
+  timeout: 3s
+  retries: 30
+  start_period: 60s
+
+x-nginx-healthcheck: &nginx-healthcheck
+  test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
+  interval: 5s
+  timeout: 3s
+  retries: 10
+
+# One trade-desk image, one container per business. Each service sets its DESK_* identity below.
+x-desk: &desk
+  build: ./trade-desk
+  image: trade-desk:local
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+  healthcheck: *spring-healthcheck
+
+x-desk-env: &desk-env
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+  DESK_DEMO_PASSWORD: ${DESK_DEMO_PASSWORD:?Set DESK_DEMO_PASSWORD in .env (copy .env.example)}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+      # One database per service. Created only on a fresh volume; after adding one run: docker compose down -v
+      POSTGRES_DATABASES: cafe roaster supplier-b supplier-c supplier-d registry
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/create-databases.sh:/docker-entrypoint-initdb.d/01-create-databases.sh:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  elasticsearch:
+    image: elasticsearch:9.4.8
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env (copy .env.example)}
+      xpack.security.enabled: "true"
+      # Plain HTTP inside the compose network keeps the registry's client simple; the port is bound to localhost.
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      xpack.ml.enabled: "false"
+      # Laptops with a nearly full disk would otherwise turn the cluster red.
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "127.0.0.1:9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -u \"elastic:$${ELASTIC_PASSWORD}\" 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=2s' >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 60s
+
+  registry:
+    build: ./registry
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/registry
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env (copy .env.example)}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+    # Elasticsearch is optional for the registry (Postgres fallback, S6), so it only waits for Postgres.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8090:8080"
+    healthcheck: *spring-healthcheck
+
+  cafe:
+    <<: *desk
+    environment:
+      <<: *desk-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cafe
+      DESK_ID: cafe
+      DESK_NAME: Corner Café
+      DESK_DOMAIN: cafe.test
+      DESK_LOCATION: "37.7793,-122.4193"
+      DESK_REGION: US-CA
+      DESK_TIME_ZONE: America/Los_Angeles
+      DESK_SIMULATED: "false"
+      PAYPAL_SANDBOX_BUYER_EMAIL: ${PAYPAL_SANDBOX_BUYER_EMAIL:-}
+    ports:
+      - "127.0.0.1:8081:8080"
+
+  roaster:
+    <<: *desk
+    environment:
+      <<: *desk-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/roaster
+      DESK_ID: roaster
+      DESK_NAME: Roaster & Co
+      DESK_DOMAIN: roaster.test
+      DESK_LOCATION: "37.8044,-122.2712"
+      DESK_REGION: US-CA
+      DESK_TIME_ZONE: America/Los_Angeles
+      DESK_INVOICE_APPROVAL_ABOVE: "500.00"
+      DESK_SIMULATED: "false"
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+    ports:
+      - "127.0.0.1:8082:8080"
+
+  # Simulated suppliers (supplier-b, -c, -d on ports 8083 to 8085) are added here by S2.
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    networks:
+      default:
+        # The fictional companies' domains resolve to the landing-page server inside Docker (S4).
+        aliases:
+          - cafe.test
+          - roaster.test
+          - supplier-b.test
+          - supplier-c.test
+          - supplier-d.test
+    healthcheck: *nginx-healthcheck
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      cafe:
+        condition: service_healthy
+      roaster:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:80"
+    healthcheck: *nginx-healthcheck
+
+volumes:
+  postgres-data:
+  elasticsearch-data:
