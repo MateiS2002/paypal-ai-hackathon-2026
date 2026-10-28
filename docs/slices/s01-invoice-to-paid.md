@@ -31,7 +31,7 @@ Desk API (roaster):
 | Route | What it does |
 | --- | --- |
 | `GET /api/invoices` | Ledger rows |
-| `POST /api/invoices` | Create and send. Body: `{ "customer": { "name", "email" }, "lines": [{ "description", "quantity", "unitPrice": Money }] }` |
+| `POST /api/invoices` | Create and send. Body: `{ "customer": { "name", "email" }, "lines": [{ "description", "quantity", "unitPrice": Money }], "sourceText"? }` |
 | `GET /api/events` | SSE, emits `invoice.updated` with the ledger row |
 
 PayPal calls (sandbox base URL constant):
@@ -48,7 +48,7 @@ Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAI
 
 ## Data
 
-Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with a net-14 term, counting days in the desk's `DESK_TIME_ZONE` from S0), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later), `created_at`, `updated_at`, `paid_at`.
+Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with a net-14 term, counting days in the desk's `DESK_TIME_ZONE` from S0), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later), `source_text` (nullable; the original order text, set only for `MESSY_ORDER`), `created_at`, `updated_at`, `paid_at`.
 
 Table `invoice_line`: `invoice_id`, `description`, `quantity`, `unit_price_minor`.
 

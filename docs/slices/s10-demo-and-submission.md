@@ -14,7 +14,7 @@ The video itself: under 3 minutes, problem, who it's for, one working end-to-end
 
 - **Root README:** what it is, a screenshot or GIF, prerequisites (Docker, about 4 GB free RAM, a PayPal sandbox app, an OpenAI key), `cp .env.example .env`, `docker compose up`, which URL to open, demo logins, sandbox buyer login steps, troubleshooting (ports, memory, Elasticsearch off).
 - **Seed data:** one command or automatic Flyway seed so a fresh run looks like the video (catalogues, a few past invoices in the ledger, café stock at 22 kg).
-- **Demo script** in `docs/demo-script.md` with timings, matching the flow in [idea-2-ai-trade-desk.md](../idea-2-ai-trade-desk.md#demo-flow-split-screen-café-vs-roaster): reorder trigger, quotes, counter, approval, PayPal payment, ledger PAID, malicious supplier, messy order, reminder.
+- **Demo script** in `docs/demo-script.md` with timings, matching the flow in [idea-2-ai-trade-desk.md](../idea-2-ai-trade-desk.md#demo-flow-split-screen-café-vs-roaster): reorder trigger, quotes, counter, approval, PayPal payment, ledger PAID, malicious supplier, messy order, then a "coming soon" label for the late-payer reminder (unless S9 reminders shipped, see the cut order in [README](README.md)).
 - **Recording:** 1080p, split screen, captions; uploaded to YouTube (public or unlisted).
 - **Devpost entry:** description, images, video link, repo link, "built with" tags (PayPal Invoicing, PayPal Agent Toolkit MCP, Spring AI, OpenAI, AG Grid, Elasticsearch).
 - **Repo:** MIT license visible in the GitHub About section, topics set, no secrets in history (run gitleaks once over the whole history).

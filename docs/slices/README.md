@@ -103,8 +103,9 @@ In order, cut from the top:
 
 1. S9 late-payer reminder (show a "coming soon" label instead).
 2. S6 Elasticsearch: keep the Postgres search from S4, which is the fallback anyway.
-3. S5 audit extras: keep tokens, fingerprint logging and the per-message JWS (S5 defines the fingerprint hash over the signed envelope, so dropping the JWS breaks tamper checks). Cut only the Network audit grid and the "verify" button, and leave the checks to tests.
-4. S7 PDF input: keep pasted text only.
+3. S5 audit extras: keep tokens, fingerprint logging, the per-message JWS (the fingerprint hash covers the signed envelope), the Network audit grid and the "verify" button. Only the checks are left to tests.
+
+PDF input in S7 stays in; the cut list stops at item 3.
 
 Never cut S1, S2, S3 or S8: they are the demo.
 
