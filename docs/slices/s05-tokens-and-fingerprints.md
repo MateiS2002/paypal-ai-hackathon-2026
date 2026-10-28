@@ -4,11 +4,11 @@
 
 ## Goal
 
-Desk-to-desk calls require a short-lived token from the registry, scoped to one receiver and one kind of action. Both sides log a fingerprint of every message to the registry, which never sees contents or prices. The registry can block an agent within about 10 seconds.
+Desk-to-desk calls require a short-lived token from the registry, scoped to one receiver and one kind of action. Both sides log a fingerprint of every message to the registry, which never sees contents or prices. The registry can block an agent within about 10 seconds while desks can reach it; if it is unreachable, tokens already issued stay valid until they expire (up to 5 minutes).
 
 ## Demo moment
 
-A 20-second security beat: a `curl` to the roaster's agent endpoint without a token gets 401; with a token for a different audience gets 403. Then the registry's audit page shows rows of hashes, sender, receiver, type and time, and no prices. Block a supplier, and within 10 seconds its quotes stop being accepted.
+A 20-second security beat: a `curl` to the roaster's agent endpoint without a token gets 401; with a token for a different audience gets 403. Then the registry's audit page shows rows of hashes, sender, receiver, type and time, and no prices. Block a supplier, and within 10 seconds its quotes stop being accepted (the registry is up during the demo).
 
 ## In scope
 
@@ -25,7 +25,7 @@ Key rotation UI (document the process; rotating is "publish a new key in the car
 
 ## Contracts
 
-- Token (plain HTTP inside compose only; any hosted deployment uses HTTPS): `POST http://registry.test/oauth2/token`, `grant_type=client_credentials`, `client_id=<sender domain>`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `client_assertion` (a JWT signed ES256 with the desk's private key: `iss` = `sub` = client id, `aud` = `http://registry.test/oauth2/token`, `jti`, `exp` at most 60 s ahead; the registry rejects a reused `jti`), `scope`, and `resource=http://roaster.test` (RFC 8707) for the receiver. An `OAuth2TokenCustomizer` checks the resource is a VERIFIED, non-blocked business and sets the JWT's `aud` to its bare domain (`roaster.test`). Canonical audience everywhere is the bare domain: the S4 challenge (`registry.test`), access tokens and the receiver's check all compare exact strings; only the `resource` parameter and the client-assertion `aud` use URLs, because the RFCs require them.
+- Token (plain HTTP inside compose only; any hosted deployment uses HTTPS): `POST http://registry.test/oauth2/token`, `grant_type=client_credentials`, `client_id=<sender domain>`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `client_assertion` (a JWT signed ES256 with the desk's private key: `iss` = `sub` = client id, `aud` = `http://registry.test/oauth2/token`, `jti`, `exp` at most 60 s ahead; the registry rejects a reused `jti`), `scope`, and `resource=http://<receiver domain>` (RFC 8707; for example `http://roaster.test`). An `OAuth2TokenCustomizer` checks the resource is a VERIFIED, non-blocked business and sets the JWT's `aud` to its bare domain (for example `roaster.test`). Canonical audience everywhere is the bare domain: the S4 challenge (`registry.test`), access tokens and the receiver's check all compare exact strings; only the `resource` parameter and the client-assertion `aud` use URLs, because the RFCs require them.
 - Scope per inbound message type. Responses (`quote` or `reject` to an RFQ, a revised `quote` to a counter, `invoice` to an accept) travel in the HTTP response of the same call and need no scope of their own.
 
   | Inbound type | Sender | Scope |
@@ -46,7 +46,7 @@ Registry: `fingerprint` (message_id unique per side, conversation_id, sha256, fr
 
 1. Missing, expired, wrong-audience and wrong-scope tokens are rejected with 401 or 403 (integration tests).
 2. A valid token from supplier B can't be used to call the café as if it were the roaster (`from` mismatch rejected).
-3. Blocking a supplier stops its token requests at once, and a token it got before the block is rejected within 10 seconds (test); the demo flow carries on with the others.
+3. Blocking a supplier stops its token requests at once, and a token it got before the block is rejected within 10 seconds while the registry answers (test). With the registry unreachable, the old token works until it expires and the UI shows "block list stale" (test). The demo flow carries on with the others.
 4. The registry database contains no prices or message bodies (check the schema and a dump after a full run).
 5. Tampering with a stored message on one desk makes "verify" fail.
 6. The full demo flow (S1 to S3) still works with tokens on, and adds under 1 second end to end.
