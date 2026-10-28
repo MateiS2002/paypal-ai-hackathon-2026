@@ -57,7 +57,7 @@ flowchart LR
   S4 --> S6
   S3 --> S8
   S1 & S2 --> S9
-  S3 & S5 & S6 & S7 & S8 --> S10
+  S3 & S5 & S6 & S7 & S8 & S9 --> S10
 
   classDef matei fill:#dbeafe,stroke:#1d4ed8,color:#111
   classDef robert fill:#dcfce7,stroke:#15803d,color:#111
@@ -103,7 +103,7 @@ In order, cut from the top:
 
 1. S9 late-payer reminder (show a "coming soon" label instead).
 2. S6 Elasticsearch: keep the Postgres search from S4, which is the fallback anyway.
-3. S5 fingerprints: keep tokens, drop fingerprint logging.
+3. S5 envelope signatures: keep tokens and fingerprint logging (both are architecture decisions), drop the extra per-message JWS.
 4. S7 PDF input: keep pasted text only.
 
 Never cut S1, S2, S3 or S8: they are the demo.

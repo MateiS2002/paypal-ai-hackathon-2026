@@ -21,8 +21,8 @@ Two small autonomy moments from the demo flow: the café's agent starts a reorde
 **Late-payer reminder (1 day)**
 
 - Overdue = status `SENT` or `UNPAID` and due date in the past. A demo-only "pretend it's a week later" switch shifts the desk clock, labelled as a demo control.
-- Roaster agent drafts a short, polite note (LLM); Java decides who gets one (at most one reminder per invoice per 3 days).
-- Send through **PayPal's MCP server** (`@paypal/mcp` or `mcp.sandbox.paypal.com`) with Spring AI's MCP client and a tool allowlist of `send_invoice_reminder` and `list_invoices` only. Fallback if MCP gives trouble: `POST /v2/invoicing/invoices/{id}/remind` from our own client.
+- Roaster agent drafts a short, polite note (LLM, strict JSON schema `{ "subject", "note" }`); Java validates it (lengths within PayPal's limits, plain text, no links) and falls back to a fixed template if it fails. Java decides who gets one (at most one reminder per invoice per 3 days).
+- Send through **PayPal's MCP server** (`@paypal/mcp` or `mcp.sandbox.paypal.com`) with Spring AI's MCP client and a tool allowlist of `send_invoice_reminder` and `list_invoices` only. Both paths send the validated `subject` and `note`, only to the invoice's own recipient (no extra recipients, no copy to the invoicer). Fallback: `POST /v2/invoicing/invoices/{id}/remind` from our own client, with a `PayPal-Request-Id` stored per reminder and reused on retries. Fall back only when the MCP call failed before it was sent (server unreachable); if the MCP result is ambiguous (timeout after sending), mark the reminder `UNKNOWN` and leave a retry to the owner, so nobody gets two.
 
 ## Out of scope
 
@@ -30,7 +30,7 @@ Real inventory integrations, scheduled reorders, escalating reminder schedules.
 
 ## Contracts
 
-Café: `GET /api/inventory`, `POST /api/inventory/{sku}/usage`, rules inside `GET/PUT /api/policy`. Roaster: `POST /api/invoices/{id}/remind`, `GET /api/invoices?overdue=true`, SSE `invoice.reminded`.
+Café: `GET /api/inventory`, `POST /api/inventory/{sku}/usage`, rules inside `GET/PUT /api/policy`. Roaster: `POST /api/invoices/{id}/remind`, `GET /api/invoices?overdue=true`, SSE `invoice.reminded`, emitted only after a reminder was sent. Both the remind response and the event carry `deliveryPath`: `MCP` or `REST`.
 
 ## Data
 

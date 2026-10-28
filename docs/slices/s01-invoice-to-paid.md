@@ -44,11 +44,11 @@ PayPal calls (sandbox base URL constant):
 | Send | `POST /v2/invoicing/invoices/{id}/send`; keep the payer-view link it returns |
 | Poll | `GET /v2/invoicing/invoices/{id}`, read `status` |
 
-Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `CANCELLED`, plus `OTHER` for anything unexpected (log it, don't crash).
+Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, plus `OTHER` for anything unexpected (log it, don't crash).
 
 ## Data
 
-Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later), `created_at`, `updated_at`, `paid_at`.
+Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with a net-14 term in the roaster's configured time zone), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later), `created_at`, `updated_at`, `paid_at`.
 
 Table `invoice_line`: `invoice_id`, `description`, `quantity`, `unit_price_minor`.
 

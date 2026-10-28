@@ -24,7 +24,7 @@ None for judges. For us: a fresh clone plus `.env` gives green health checks for
   .env.example
   ```
 
-- `trade-desk` and `registry`: Java 21, Spring Boot 4.1, Actuator `/actuator/health`, Flyway with an empty first migration, Spring Security on with one demo login per desk.
+- `trade-desk` and `registry`: Java 21, Spring Boot 4.1, Actuator `/actuator/health` (open, used only by compose health checks and not proxied by the frontend), Flyway with an empty first migration, Spring Security on with one demo login per desk.
 - `docker-compose.yml` with `postgres` (one database per service, created by an init script), `cafe`, `roaster`, `registry`, `web`, `frontend`. Health checks and `depends_on: condition: service_healthy`. Elasticsearch and the simulated suppliers are added by the slices that need them (S6, S2).
 - `frontend` nginx proxies `/cafe/api/**` to the café desk and `/roaster/api/**` to the roaster desk, so the browser talks to one origin and CORS stays closed.
 - A single CI-free check: `docker compose up --wait` succeeds locally. CodeQL is the only required GitHub check.
@@ -52,7 +52,7 @@ These are the shared contracts the workflow says go first. Put them in `contract
 | `ELASTIC_PASSWORD` | elasticsearch, registry | Added in S6. |
 | `DESK_DEMO_PASSWORD` | desks | Demo login password, same for every desk. |
 
-Per-desk settings that aren't secret (`DESK_ID`, `DESK_NAME`, `DESK_DOMAIN`, `DESK_PERSONA`, `DESK_SIMULATED`) live in `docker-compose.yml`, not `.env`.
+Per-desk settings that aren't secret (`DESK_ID`, `DESK_NAME`, `DESK_DOMAIN`, `DESK_LOCATION`, `DESK_PERSONA`, `DESK_SIMULATED`) live in `docker-compose.yml`, not `.env`.
 
 **Frontend to desk (REST + SSE):** every desk exposes `/api/**` for its own UI and one SSE stream `GET /api/events`. Events are `{"type": "invoice.updated" | "quote.received" | "approval.needed" | ..., "data": {...}}`. Each slice adds its own routes and event types to `contracts/desk-api.md`.
 
@@ -61,7 +61,7 @@ Per-desk settings that aren't secret (`DESK_ID`, `DESK_NAME`, `DESK_DOMAIN`, `DE
 ```json
 {
   "messageId": "uuid",
-  "type": "rfq | quote | counter | accept | reject",
+  "type": "rfq | quote | counter | accept | reject | invoice | invoice.status",
   "from": "cafe.test",
   "to": "roaster.test",
   "conversationId": "uuid",
@@ -80,11 +80,11 @@ Empty schemas plus Flyway baseline. Each slice adds its own migrations.
 
 1. On a fresh clone with `.env` copied from `.env.example`, `docker compose up --wait` exits 0 and `docker compose ps` shows every service healthy.
 2. `http://localhost:8080` shows the frontend shell with "Café" and "Roaster" login choices.
-3. `http://localhost:8080/roaster/api/health` (proxied) returns `UP` after login, 401 before.
+3. `http://localhost:8080/roaster/api/me` (nginx maps `/roaster/api/**` to the roaster desk's `/api/**`) returns the logged-in desk user after login, and 401 before.
 4. `contracts/` holds the envelope schema and `desk-api.md`; `agents/context.md` lists folders and run commands.
 5. No secrets in git; `.env` is gitignored.
 
 ## Review-sensitive
 
-- Login approach (form login with session cookie vs JWT). Pick session cookies for now: simplest with CSRF on.
+- Login approach (form login with session cookie vs JWT). Pick session cookies for now: simplest with CSRF on. Unauthenticated `/api/**` requests get 401 (`HttpStatusEntryPoint`), not a redirect to `/login`, so the React app can show its own login screen.
 - Whether simulated suppliers are separate containers or tenants in one container (memory).

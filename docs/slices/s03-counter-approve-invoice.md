@@ -19,7 +19,7 @@ Counters go out, two suppliers improve their price, the agent says "Roaster: $1 
 - **Policy engine (plain Java):** café rules `maxUnitPrice`, `approvalAbove` (e.g. $500), `maxOrderTotal`. Outcomes: `AUTO_ACCEPT`, `NEEDS_APPROVAL`, `BLOCKED` with reasons. Café owner can edit the rules on a settings screen.
 - **Approval:** `approval.needed` SSE event, one-tap Approve or Reject in the UI. Nothing is sent to the supplier before approval.
 - **Accept to invoice:** café sends `accept`; supplier desk re-checks the quote is still valid and within floor, then calls `InvoiceService` with `source = NEGOTIATION` and returns the PayPal invoice id and payer link in its reply.
-- Café UI: "Invoices to pay" list with the PayPal pay link and live status. The supplier desk tells the café when the status changes by sending an `invoice` message; if that's awkward, the café just shows the payer link and the status from the supplier's reply.
+- Café UI: "Invoices to pay" list with the PayPal pay link and live status. The supplier desk's S1 poller sends an `invoice.status` message to the café whenever the status changes; the café updates `payable.status` from it and emits `invoice.updated` on its own SSE stream.
 - Simulated suppliers invoice through the shared SIMULATED sandbox merchant.
 
 ## Out of scope
@@ -28,7 +28,7 @@ Multiple counter rounds, partial deliveries, the malicious supplier (S8).
 
 ## Contracts
 
-Agent message types added: `counter` (`{ "quoteId", "unitPrice": Money }`), `quote` (revised), `accept` (`{ "quoteId" }`), reply `invoice` (`{ "paypalInvoiceId", "payerViewUrl", "total": Money }`), `reject`.
+Agent message types added: `counter` (`{ "quoteId", "unitPrice": Money }`), `quote` (revised), `accept` (`{ "quoteId" }`), reply `invoice` (`{ "paypalInvoiceId", "payerViewUrl", "total": Money, "status" }`), `reject`, and `invoice.status` from supplier to buyer (`{ "paypalInvoiceId", "status", "updatedAt" }`). `status` uses S1's enum. The café ignores an `invoice.status` for an invoice id it doesn't hold or from a desk that isn't that invoice's supplier.
 
 Desk API (café): `POST /api/needs/{id}/counter`, `GET /api/needs/{id}/recommendation`, `POST /api/approvals/{id}` with `{ "decision": "APPROVE" | "REJECT" }`, `GET /api/payables`, `GET/PUT /api/policy`.
 

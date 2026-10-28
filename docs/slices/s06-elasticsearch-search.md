@@ -26,7 +26,7 @@ Searching buyers in any way (hard rule). Search UI beyond the existing Network p
 
 ## Contracts
 
-`GET /api/suppliers?q=&lat=&lon=&minQty=&priority=` returns `{ "engine": "elasticsearch | postgres", "results": [{ "domain", "name", "sku", "description", "score", "simulated" }] }`. Same shape as S4, extra query parameters optional.
+`GET /api/suppliers?q=&lat=&lon=&minQty=&priority=` returns `{ "engine": "elasticsearch | postgres", "results": [{ "domain", "name", "sku", "description", "score", "simulated" }] }`. Same shape as S4. `lat` and `lon` are required (the café desk sends its configured location, `DESK_LOCATION` in compose); missing or out-of-range values return 400. `minQty` and `priority` are optional.
 
 ## Data
 

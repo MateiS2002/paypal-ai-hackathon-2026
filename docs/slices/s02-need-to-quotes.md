@@ -44,7 +44,7 @@ Desk API (café):
 Agent API (every desk): `POST /agent/messages` with the S0 envelope.
 
 - `type: "rfq"`, body: the `PurchaseRequest` minus anything private (no stock levels, no budget).
-- Response `type: "quote"`, body: `{ "rfqId", "unitPrice": Money, "quantity", "deliveryDate", "validUntil", "note" }`, or `type: "reject"` with a reason.
+- Response `type: "quote"`, body: `{ "rfqId", "unitPrice": Money, "quantity", "availableQuantity", "unit", "deliveryDate", "validUntil", "note" }`, or `type: "reject"` with a reason. `quantity` is what the supplier offers for this RFQ; `availableQuantity` is its current stock in the same unit, shown in the offers grid's stock column.
 
 ## Data
 

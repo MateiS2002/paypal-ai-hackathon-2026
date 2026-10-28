@@ -15,7 +15,8 @@ The roaster's landing page at `roaster.test`, then its agent card JSON. In the n
 - **`web/`:** one static landing page per company (HTML/CSS, a little JS), all served by one nginx with server blocks for `cafe.test`, `roaster.test`, `supplier-b.test`, `supplier-c.test`, `supplier-d.test`. Compose network aliases make the names resolve inside Docker. SIMULATED suppliers say so in their footer.
 - **Agent card:** nginx proxies `/.well-known/agent-card.json` on each domain to that company's desk, which renders it with its live public key (JWKS). The landing page itself stays static.
 - **Desk identity (in `trade-desk`, package `identity`):** on first start generate an EC P-256 key pair, store it in a per-desk Docker volume, never log or return the private key. Endpoints: `GET /.well-known/agent-card.json`, `POST /agent/challenge` (signs the nonce).
-- **Registry:** `POST /api/registrations { "domain" }` fetches the card, sends a nonce with audience = registry and a 60 s expiry, verifies the signature against the card's JWKS, stores the business, its public keys, skills, delivery areas and catalogue summary.
+- **Registry:** `POST /api/registrations { "domain" }` fetches the card, sends a nonce with `aud` = `registry.test` (the same exact value in the request, the JWS claim and the tests) and a 60 s expiry, verifies the signature against the card's JWKS, stores the business, its public keys, skills, delivery areas and catalogue summary.
+- **Safe fetching:** the registry only fetches `http://<domain>/.well-known/agent-card.json` and the challenge URL on that same host. `domain` must be a bare host name (no scheme, port, path or IP literal) and, while we run under compose, must match an allowlist pattern (`*.test`, from config). No redirects, 2 s connect and read timeouts, 64 KB response cap. The card's `url` must be on the registered domain, or registration fails. A hosted deployment swaps the allowlist for HTTPS-only plus rejection of private, loopback and link-local addresses checked at connect time.
 - **Search v1 (Postgres):** `GET /api/suppliers?q=&deliversTo=` with keyword match and a simple delivery-area check (list of country or region codes). This stays as the fallback when S6 adds Elasticsearch.
 - Café desk: replace `DESK_PEERS` with a registry lookup; keep the static list behind a flag for offline debugging.
 - Frontend: a "Network" page listing verified businesses (AG Grid).
@@ -51,10 +52,11 @@ Registry: `business` (domain unique, name, status `PENDING | VERIFIED | FAILED |
 
 1. Each `*.test` page loads in the browser through the documented host port, and each card is valid JSON with a public key only.
 2. Registering `roaster.test` ends VERIFIED; a desk that serves another domain's card but can't sign with its key ends FAILED.
-3. A replayed signature (same nonce, or wrong audience, or expired) is rejected (unit tests).
-4. The private key file is in a volume, not in the image or git, and no endpoint or log line contains it.
-5. Restarting a desk keeps its key; deleting the volume makes a new one and re-registration picks it up.
-6. With S2 merged, the café's fan-out uses the registry's supplier list and the demo flow still works.
+3. Registering `localhost`, an IP address, `postgres` or a domain outside the allowlist is refused before any request is made (test).
+4. A replayed signature (same nonce, or wrong audience, or expired) is rejected (unit tests).
+5. The private key file is in a volume, not in the image or git, and no endpoint or log line contains it.
+6. Restarting a desk keeps its key; deleting the volume makes a new one and re-registration picks it up.
+7. With S2 merged, the café's fan-out uses the registry's supplier list and the demo flow still works.
 
 ## Review-sensitive
 
