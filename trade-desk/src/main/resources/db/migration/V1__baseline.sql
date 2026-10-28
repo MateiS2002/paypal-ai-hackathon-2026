@@ -1,0 +1,1 @@
+-- Baseline for the trade desk database. Each slice adds its own V<n>__*.sql migration.

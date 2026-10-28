@@ -1,0 +1,29 @@
+# Settings for every desk. Per-desk values come from DESK_* variables in docker-compose.yml, secrets from .env.
+spring:
+  application:
+    name: trade-desk
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/${desk.id}}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${POSTGRES_PASSWORD}
+  flyway:
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+  servlet:
+    session:
+      cookie:
+        # Every desk sits behind the same origin (localhost:8080), so each needs its own cookie name.
+        name: ${desk.id}_SESSION
+        http-only: true
+        same-site: lax
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

@@ -11,6 +11,7 @@ Status as of Oct 28, 2026: **Idea 2, the AI trade desk, is locked.** See [archit
 | [idea-2-ai-trade-desk.md](idea-2-ai-trade-desk.md) | Idea 2 (B2B): AI trade desk and supplier network |
 | [idea-scorecard.md](idea-scorecard.md) | Judging scores, build effort and feasibility ranking |
 | [research-agentic-checkout.md](research-agentic-checkout.md) | Which real agent-checkout options exist today |
+| [local-setup.md](local-setup.md) | Laptop setup: tools, `.env` keys, running and developing the services |
 | [repo-setup.md](repo-setup.md) | CodeRabbit, CodeQL, Dependabot, branch protection: what's set up and the one-time GitHub steps |
 
 Live versions with charts and comments:
