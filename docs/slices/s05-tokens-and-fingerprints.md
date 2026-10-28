@@ -25,16 +25,16 @@ Key rotation UI (document the process; rotating is "publish a new key in the car
 
 ## Contracts
 
-- Token (plain HTTP inside compose only; any hosted deployment uses HTTPS): `POST http://registry.test/oauth2/token`, `grant_type=client_credentials`, `client_id=<sender domain>`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `client_assertion` (a JWT signed ES256 with the desk's private key: `iss` = `sub` = client id, `aud` = `http://registry.test/oauth2/token`, `jti`, `exp` at most 60 s ahead; the registry rejects a reused `jti`), `scope`, and `resource=http://<receiver domain>` (RFC 8707; for example `http://roaster.test`). An `OAuth2TokenCustomizer` checks the resource is a VERIFIED, non-blocked business and sets the JWT's `aud` to its bare domain (for example `roaster.test`). Canonical audience everywhere is the bare domain: the S4 challenge (`registry.test`), access tokens and the receiver's check all compare exact strings; only the `resource` parameter and the client-assertion `aud` use URLs, because the RFCs require them.
+- Token (plain HTTP inside compose only; any hosted deployment uses HTTPS): `POST <REGISTRY_TOKEN_URL>` (compose: `http://registry.test/oauth2/token`; hosted: the HTTPS URL), `grant_type=client_credentials`, `client_id=<sender domain>`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `client_assertion` (a JWT signed ES256 with the desk's private key: `iss` = `sub` = client id, `aud` = the same `REGISTRY_TOKEN_URL` the request goes to, `jti`, `exp` at most 60 s ahead; the registry rejects a reused `jti`), `scope`, and `resource=http://<receiver domain>` (RFC 8707; for example `http://roaster.test`). Requested scopes must all be allowed for the client's registered role (table below); any other scope rejects the whole request. The resource must be either `http://registry.test` (only for `fingerprint:write`) or a VERIFIED, non-blocked business; an `OAuth2TokenCustomizer` checks that and sets the JWT's `aud` to its bare domain (for example `roaster.test`). Canonical audience everywhere is the bare domain: the S4 challenge (`registry.test`), access tokens and the receiver's check all compare exact strings; only the `resource` parameter and the client-assertion `aud` use URLs, because the RFCs require them.
 - Scope per inbound message type. Responses (`quote` or `reject` to an RFQ, a revised `quote` to a counter, `invoice` to an accept) travel in the HTTP response of the same call and need no scope of their own.
 
-  | Inbound type | Sender | Scope |
+  | Inbound type | Sender role | Scope |
   | --- | --- | --- |
   | `rfq` | buyer | `rfq:send` |
   | `counter` | buyer | `quote:counter` |
   | `accept` | buyer | `quote:accept` |
   | `invoice.status` | supplier | `invoice:notify` |
-| (fingerprint report to the registry) | any desk | `fingerprint:write` |
+| (fingerprint report to the registry) | buyer or supplier | `fingerprint:write` |
 
 - Envelope gains a `signature` field (compact JWS over the canonical envelope without `signature`).
 - `POST /api/fingerprints`, `GET /api/fingerprints?conversationId=`.
