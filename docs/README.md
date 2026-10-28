@@ -5,6 +5,7 @@ Status as of Oct 28, 2026: **Idea 2, the AI trade desk, is locked.** See [archit
 | Doc | What's in it |
 | --- | --- |
 | [architecture.md](architecture.md) | Architecture, tech stack and agreed design decisions for the trade desk |
+| [slices/](slices/README.md) | Build plan: vertical slices with specs, dependency map, owners and schedule |
 | [strategy.md](strategy.md) | Rules summary, prize targets and timeline |
 | [idea-1-ai-shopping-os.md](idea-1-ai-shopping-os.md) | Idea 1 (B2C): fullscreen AI shopping "OS" |
 | [idea-2-ai-trade-desk.md](idea-2-ai-trade-desk.md) | Idea 2 (B2B): AI trade desk and supplier network |

@@ -1,0 +1,61 @@
+# S5: Scoped tokens and message fingerprints
+
+**Owner:** Matei · **Estimate:** 2 days · **Depends on:** S2, S4
+
+## Goal
+
+Desk-to-desk calls require a short-lived token from the registry, scoped to one receiver and one kind of action. Both sides log a fingerprint of every message to the registry, which never sees contents or prices. The registry can block an agent within about 10 seconds while desks can reach it; if it is unreachable, tokens already issued stay valid until they expire (up to 5 minutes).
+
+## Demo moment
+
+A 20-second security beat: a `curl` to the roaster's agent endpoint without a token gets 401; with a token for a different audience gets 403. Then the registry's audit page shows rows of hashes, sender, receiver, type and time, and no prices. Block a supplier, and within 10 seconds its quotes stop being accepted (the registry is up during the demo).
+
+## In scope
+
+- **Registry as authorization server** (Spring Authorization Server): each VERIFIED business is an OAuth client with `private_key_jwt` client authentication using the key from S4. Token: JWT, about 5 minutes, `aud` = receiving desk's bare domain, scopes as in the table under Contracts.
+- **Desks as resource servers** (Spring Security): `/agent/**` requires a valid registry-signed token, the right `aud`, and the scope for the envelope `type` from the table below; any other type is rejected. The envelope `from` must equal the token's client. One narrow exception: `POST /agent/challenge` (S4 enrollment, before the desk has any token) stays open and keeps S4's nonce, `aud`, expiry and host checks. Remove the `TODO S5` markers from S2 and S3.
+- **Message signing:** the sender also signs the envelope (JWS, ES256) with nonce and expiry; the receiver checks it against the sender's registry-held key. This is what makes fingerprints provable.
+- **Fingerprints:** after sending or receiving, each desk posts `{ messageId, conversationId, sha256, from, to, type, sentAt }` to the registry. `sha256` is the hash of the full signed envelope (JWS included) exactly as sent. `POST /api/fingerprints` needs a registry token with `aud` = `registry.test` and scope `fingerprint:write`; the registry sets `reported_by` from the token's client and refuses a fingerprint where that client is neither `from` nor `to`. `GET` returns only conversations where the caller's desk is `from` or `to`; the registry's own admin audit page sees all rows (still no contents). Registry stores them; a stored message on either desk can be re-hashed and checked.
+- **Block:** registry admin action sets `BLOCKED`; no new tokens are issued. Tokens already issued would live up to 5 minutes, so desks also pull `GET /api/blocked` every 10 seconds and reject any call whose client is on that list. If a refresh fails, the desk keeps the last list it got and logs a warning. So the 10-second bound holds while the registry answers; if it is unreachable, the bound degrades to token expiry (up to 5 minutes), and the UI shows "block list stale". We accept that for the demo rather than refuse all calls while the registry is down.
+- Frontend: a "Network audit" AG Grid of fingerprints, and a "verify" button on a stored message.
+
+## Out of scope
+
+Key rotation UI (document the process; rotating is "publish a new key in the card, re-register"). mTLS.
+
+## Contracts
+
+- Token (plain HTTP inside compose only; any hosted deployment uses HTTPS): `POST <REGISTRY_TOKEN_URL>` (compose: `http://registry.test/oauth2/token`; hosted: the HTTPS URL), `grant_type=client_credentials`, `client_id=<sender domain>`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `client_assertion` (a JWT signed ES256 with the desk's private key: `iss` = `sub` = client id, `aud` = the same `REGISTRY_TOKEN_URL` the request goes to, `jti`, `exp` at most 60 s ahead; the registry rejects a reused `jti`), `scope`, and `resource=http://<receiver domain>` (RFC 8707; for example `http://roaster.test`). Requested scopes must all be allowed for the client's registered role (table below); any other scope rejects the whole request. The resource must be either `http://registry.test` (only for `fingerprint:write`) or a VERIFIED, non-blocked business; an `OAuth2TokenCustomizer` checks that and sets the JWT's `aud` to its bare domain (for example `roaster.test`). Canonical audience everywhere is the bare domain: the S4 challenge (`registry.test`), access tokens and the receiver's check all compare exact strings; only the `resource` parameter and the client-assertion `aud` use URLs, because the RFCs require them.
+- Scope per inbound message type. Responses (`quote` or `reject` to an RFQ, a revised `quote` to a counter, `invoice` to an accept) travel in the HTTP response of the same call and need no scope of their own.
+
+  | Inbound type | Sender role | Scope |
+  | --- | --- | --- |
+  | `rfq` | buyer | `rfq:send` |
+  | `counter` | buyer | `quote:counter` |
+  | `accept` | buyer | `quote:accept` |
+  | `invoice.status` | supplier | `invoice:notify` |
+| (fingerprint report to the registry) | buyer or supplier | `fingerprint:write` |
+
+- Envelope gains a `signature` field (compact JWS over the canonical envelope without `signature`).
+- `POST /api/fingerprints`, `GET /api/fingerprints?conversationId=`.
+
+## Data
+
+Registry: `fingerprint` (message_id unique per side, conversation_id, sha256, from_domain, to_domain, type, sent_at, reported_by). Spring Authorization Server's client tables. No message bodies anywhere in the registry.
+
+## Acceptance criteria
+
+1. Missing, expired, wrong-audience and wrong-scope tokens are rejected with 401 or 403 (integration tests).
+2. A valid token from supplier B can't be used to call the café as if it were the roaster (`from` mismatch rejected).
+3. Blocking a supplier stops its token requests at once, and a token it got before the block is rejected within 10 seconds while the registry answers (test). With the registry unreachable, the old token works until it expires and the UI shows "block list stale" (test). The demo flow carries on with the others.
+4. The registry database contains no prices or message bodies (check the schema and a dump after a full run).
+5. Tampering with a stored message on one desk makes "verify" fail.
+6. The full demo flow (S1 to S3) still works with tokens on, and adds under 1 second end to end.
+
+## Review-sensitive
+
+This is the slice the reviewer is most likely to change, which is why it comes after the demo spine.
+
+- Spring Authorization Server vs a small hand-rolled token endpoint (less code, less credibility).
+- Whether envelope signatures are needed on top of tokens, or tokens alone are enough for the hackathon.
+- Fingerprint timing (sync on send vs batched).
