@@ -23,6 +23,8 @@ Two people, Matei (Claude Code) and Robert (Antigravity), each driving coding ag
 - The description says what changed, how to test it, and any new env variables or services.
 - The other person reviews when possible; a quick look beats a long wait. Near the deadline, self-merging a small green PR is fine.
 - Before merging, check that `docker compose up` still starts and the main demo flow still works.
+- CodeRabbit reviews every PR into `main` and CodeQL runs as a check ([docs/repo-setup.md](../docs/repo-setup.md)). Address or reply to every CodeRabbit comment before merging; if one is wrong for this project, reply saying why so it learns.
+- Use the PR template's checklist.
 
 ## Commits
 

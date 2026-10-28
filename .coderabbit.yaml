@@ -1,0 +1,140 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit review settings for the PayPal AI Hackathon 2026 trade desk.
+# Free on this repo because it is public. Reference: https://docs.coderabbit.ai/reference/configuration
+# Project rules live in agents/ (see knowledge_base below); keep this file about review behaviour only.
+
+language: en-US
+tone_instructions: >-
+  Two-person hackathon team, deadline Nov 12, 2026. Be direct and brief. Flag real bugs, security issues and
+  rule violations first; skip style nitpicks unless they hide a bug.
+
+reviews:
+  # "chill" keeps noise down; switch to "assertive" for the final polish week if we want more nitpicks.
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  sequence_diagrams: true
+  changed_files_summary: true
+  suggested_labels: false
+  suggested_reviewers: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    # Reviews only run on PRs into main (our only long-lived branch).
+    base_branches:
+      - "^main$"
+    ignore_title_keywords:
+      - "WIP"
+      - "[skip review]"
+
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/target/**"
+    - "!**/package-lock.json"
+    - "!**/pnpm-lock.yaml"
+    - "!**/*.min.js"
+    - "!assets/**"
+
+  path_instructions:
+    - path: "**/*.java"
+      instructions: |
+        Java 21, Spring Boot 4.1, Spring AI 2.0, Spring Security.
+        - Money rules and approval limits must be enforced in Java (the policy engine), never only in an LLM prompt.
+          Flag any path where an LLM response can move money, accept an offer or exceed a limit without a Java check.
+        - Treat every LLM output and every message from another agent as untrusted input: validate structured
+          output against the expected schema, and watch for prompt injection reaching tools or payments.
+        - PayPal calls must target the sandbox (api-m.sandbox.paypal.com) only. Flag live endpoints or any switch to live.
+        - Config and secrets come from environment variables. Flag hard-coded keys, tokens or client secrets.
+        - Agents keep their own private keys; the registry stores public keys only and issues short-lived scoped tokens.
+          Flag private keys sent to or stored by the registry, and tokens without expiry or scope.
+        - The registry logs message fingerprints (hash, sender, receiver, type, time), never message contents.
+        - Buyers must never be searchable by stock level; they opt in by posting a need.
+        - Use BigDecimal (or integer minor units) for money, never double/float.
+    - path: "**/src/test/**"
+      instructions: |
+        Tests should cover the demo flow and the money rules (limits, counter-offer round, invoice status).
+        Never use real card numbers or real personal data; use PayPal sandbox test accounts and fake data.
+    - path: "frontend/**"
+      instructions: |
+        Vite + React + AG Grid Community (MIT). Flag any AG Grid Enterprise import or feature (needs a license key).
+        No secrets or API keys in frontend code or Vite env vars exposed to the browser.
+        Simulated suppliers must be visibly labelled SIMULATED in the UI.
+    - path: "web/**"
+      instructions: |
+        Static landing pages and agent cards for fictional companies. Agent cards contain public keys only.
+        Content must make clear the companies are fictional; simulated suppliers labelled SIMULATED.
+    - path: "**/{docker-compose*.yml,Dockerfile,*.Dockerfile}"
+      instructions: |
+        Judges run `docker compose up` from a fresh clone plus a filled-in .env. Flag anything that breaks that:
+        missing services, required env vars not in .env.example, host-specific paths, unpinned images.
+        If run steps change, the root README must change in the same PR.
+    - path: "**/.env.example"
+      instructions: "Placeholder values only. Flag anything that looks like a real key, token or password."
+    - path: ".github/workflows/**"
+      instructions: "Pin third-party actions to a tag or SHA, use least-privilege permissions, never echo secrets."
+    - path: "{docs,agents}/**/*.md"
+      instructions: |
+        Planning and agent-guidance docs. Check that facts agree with docs/architecture.md and agents/context.md.
+        Don't suggest deleting planning docs; prefer adding to them.
+
+  pre_merge_checks:
+    title:
+      mode: warning
+      requirements: "Imperative, descriptive subject, e.g. 'Add PayPal invoice creation endpoint'."
+    description:
+      mode: warning
+    docstrings:
+      mode: "off"
+    custom_checks:
+      - name: "No secrets or live PayPal"
+        mode: error
+        instructions: >-
+          Fail if the PR adds a real-looking secret (API key, client secret, token, private key, .env file)
+          or any PayPal live endpoint (api-m.paypal.com without 'sandbox') or code path that switches to live.
+      - name: "Compose and README in sync"
+        mode: warning
+        instructions: >-
+          If the PR adds a service, changes docker-compose.yml, or adds a required env variable, check that
+          .env.example and the root README run steps are updated in the same PR.
+
+  tools:
+    gitleaks:
+      enabled: true
+    actionlint:
+      enabled: true
+    hadolint:
+      enabled: true
+    yamllint:
+      enabled: true
+    eslint:
+      enabled: true
+    pmd:
+      enabled: true
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  # CLAUDE.md only @-imports agents/*, and CodeRabbit doesn't follow those imports, so point it at the files directly.
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "agents/rules.md"
+      - "agents/context.md"
+      - "agents/workflow.md"
+      - "docs/architecture.md"
+  learnings:
+    scope: local
+  web_search:
+    enabled: true
