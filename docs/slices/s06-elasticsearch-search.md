@@ -35,7 +35,7 @@ Elasticsearch index only; mapping kept in `registry/src/main/resources/elasticse
 ## Acceptance criteria
 
 1. The demo query returns the Cerrado listing in the top 3 with no shared keywords.
-2. A supplier whose area excludes the café's point is never returned.
+2. With `engine: elasticsearch`, a supplier whose area excludes the café's point is never returned; with `engine: postgres`, a supplier that doesn't list the café's region is never returned.
 3. An exact SKU query ranks that SKU first (keyword wins).
 4. `docker compose stop elasticsearch` and the same query still returns results with `engine: postgres`; the demo flow still runs.
 5. Fresh `docker compose up` stays within the README's stated memory.
