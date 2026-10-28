@@ -1,0 +1,55 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # CodeQL fails a language that has no source files, so only scan the languages that exist yet.
+  # Java and JS/TS switch on by themselves once the first backend and frontend code lands.
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      languages: ${{ steps.detect.outputs.languages }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: detect
+        run: |
+          langs='"actions"'
+          if git ls-files '*.java' '*.kt' | grep -q .; then langs="$langs,\"java-kotlin\""; fi
+          if git ls-files '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs' | grep -q .; then langs="$langs,\"javascript-typescript\""; fi
+          echo "languages=[$langs]" >> "$GITHUB_OUTPUT"
+
+  analyze:
+    needs: detect
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJSON(needs.detect.outputs.languages) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # build-mode none scans Java without compiling it, so the workflow needs no Maven/Gradle setup.
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
