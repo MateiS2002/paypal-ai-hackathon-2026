@@ -4,11 +4,11 @@
 
 ## Goal
 
-Desk-to-desk calls require a short-lived token from the registry, scoped to one receiver and one kind of action. Both sides log a fingerprint of every message to the registry, which never sees contents or prices. The registry can block an agent instantly.
+Desk-to-desk calls require a short-lived token from the registry, scoped to one receiver and one kind of action. Both sides log a fingerprint of every message to the registry, which never sees contents or prices. The registry can block an agent within about 10 seconds.
 
 ## Demo moment
 
-A 20-second security beat: a `curl` to the roaster's agent endpoint without a token gets 401; with a token for a different audience gets 403. Then the registry's audit page shows rows of hashes, sender, receiver, type and time, and no prices. Block a supplier, and its next quote never arrives.
+A 20-second security beat: a `curl` to the roaster's agent endpoint without a token gets 401; with a token for a different audience gets 403. Then the registry's audit page shows rows of hashes, sender, receiver, type and time, and no prices. Block a supplier, and within 10 seconds its quotes stop being accepted.
 
 ## In scope
 
@@ -16,7 +16,7 @@ A 20-second security beat: a `curl` to the roaster's agent endpoint without a to
 - **Desks as resource servers** (Spring Security): `/agent/**` requires a valid registry-signed token, the right `aud`, and the scope for the envelope `type` from the table below; any other type is rejected. The envelope `from` must equal the token's client. Remove the `TODO S5` markers from S2.
 - **Message signing:** the sender also signs the envelope (JWS, ES256) with nonce and expiry; the receiver checks it against the sender's registry-held key. This is what makes fingerprints provable.
 - **Fingerprints:** after sending or receiving, each desk posts `{ messageId, conversationId, sha256, from, to, type, sentAt }` to the registry. Registry stores them; a stored message on either desk can be re-hashed and checked.
-- **Block:** registry admin action sets `BLOCKED`; no new tokens are issued. Tokens already issued would live up to 5 minutes, so desks also pull `GET /api/blocked` every 10 seconds and reject any call whose client is on that list.
+- **Block:** registry admin action sets `BLOCKED`; no new tokens are issued. Tokens already issued would live up to 5 minutes, so desks also pull `GET /api/blocked` every 10 seconds and reject any call whose client is on that list. If a refresh fails, the desk keeps the last list it got and logs a warning; tokens still expire after 5 minutes, so the worst case is bounded.
 - Frontend: a "Network audit" AG Grid of fingerprints, and a "verify" button on a stored message.
 
 ## Out of scope
