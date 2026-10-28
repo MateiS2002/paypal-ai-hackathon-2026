@@ -22,7 +22,7 @@ Two small autonomy moments from the demo flow: the café's agent starts a reorde
 
 - Overdue = status `SENT` or `UNPAID` and due date before today in the desk's `DESK_TIME_ZONE`. A demo-only "pretend it's a week later" switch shifts the desk clock, labelled as a demo control.
 - Roaster agent drafts a short, polite note (LLM, strict JSON schema `{ "subject", "note" }`); Java validates it (lengths within PayPal's limits, plain text, no links) and falls back to a fixed template if it fails. Java decides who gets one (at most one reminder per invoice per 3 days).
-- Send through **PayPal's MCP server** (`@paypal/mcp` or `mcp.sandbox.paypal.com`) with Spring AI's MCP client and a tool allowlist of `send_invoice_reminder` and `list_invoices` only. The MCP call passes `invoice_id` plus the validated `subject` and `note` and nothing else (no `additional_recipients`), so the reminder only reaches the invoice's own recipient. Fallback: `POST /v2/invoicing/invoices/{id}/remind` from our own client with `send_to_invoicer: false`. Known limitation: we don't rely on the REST call carrying our subject and note, so a REST reminder may arrive with PayPal's default text; the UI says so when `deliveryPath` is `REST`. Each attempt stores a `PayPal-Request-Id`, reused on retries. Fall back only when the MCP call failed before it was sent (server unreachable); if the MCP result is ambiguous (timeout after sending), mark the reminder `UNKNOWN` and leave a retry to the owner, so nobody gets two.
+- Send through **PayPal's MCP server** (`@paypal/mcp` started with `PAYPAL_ENVIRONMENT=SANDBOX`, which the desk checks at startup and refuses to run without, or `mcp.sandbox.paypal.com`) with Spring AI's MCP client and a tool allowlist of `send_invoice_reminder` and `list_invoices` only. The MCP call passes `invoice_id` plus the validated `subject` and `note` and nothing else (`additional_recipients: []`, set explicitly, because omitting it notifies the invoice's CC addresses), so the reminder only reaches the invoice's own recipient. Fallback: `POST /v2/invoicing/invoices/{id}/remind` from our own client with `send_to_invoicer: false` and `additional_recipients: []`. Known limitation: we don't rely on the REST call carrying our subject and note, so a REST reminder may arrive with PayPal's default text; the UI says so when `deliveryPath` is `REST`. Each attempt stores a `PayPal-Request-Id`, reused on retries. Fall back only when the MCP call failed before it was sent (server unreachable); if the MCP result is ambiguous (timeout after sending), mark the reminder `UNKNOWN` and leave a retry to the owner, so nobody gets two.
 
 ## Out of scope
 
@@ -34,12 +34,12 @@ Café: `GET /api/inventory`, `POST /api/inventory/{sku}/usage`, rules inside `GE
 
 ## Data
 
-Café: `inventory_item` (sku, description, stock_qty, unit), `reorder_rule`. Roaster: `invoice.due_date`, `invoice.last_reminded_at` (set only on `SENT`), and `reminder_attempt` (id, invoice_id, status `SENT` | `UNKNOWN` | `FAILED`, delivery_path `MCP` | `REST`, paypal_request_id, created_at). The 3-day rule counts `SENT` and `UNKNOWN` attempts, so an ambiguous one also blocks an automatic second send.
+Café: `inventory_item` (sku, description, stock_qty, unit), `reorder_rule`. Roaster: `invoice.due_date`, `invoice.last_reminded_at` (set only on `SENT`), and `reminder_attempt` (id, invoice_id, status `PENDING` | `SENT` | `UNKNOWN` | `FAILED`, delivery_path `MCP` | `REST`, paypal_request_id, created_at). The 3-day rule counts `SENT` and `UNKNOWN` attempts, so an ambiguous one also blocks an automatic second send. To stop two clicks racing, the remind call locks the invoice row (`SELECT ... FOR UPDATE`), checks the rule, and inserts a `PENDING` attempt in one transaction before calling PayPal; the attempt then moves to `SENT`, `UNKNOWN` or `FAILED`. `PENDING` also blocks.
 
 ## Acceptance criteria
 
 1. Logging usage below the threshold starts exactly one need; logging again doesn't start a second while one is open.
-2. The overdue invoice gets a reminder visible in the sandbox; a second press within 3 days is refused by Java.
+2. The overdue invoice gets a reminder visible in the sandbox; a second press within 3 days is refused by Java, including two concurrent presses (test); a sandbox invoice with a CC address doesn't notify the CC.
 3. The MCP client can't call any PayPal tool outside the allowlist (test).
 4. If the MCP server is unreachable the reminder still goes out through REST, and the UI says which path was used.
 

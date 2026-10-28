@@ -13,9 +13,9 @@ A 20-second security beat: a `curl` to the roaster's agent endpoint without a to
 ## In scope
 
 - **Registry as authorization server** (Spring Authorization Server): each VERIFIED business is an OAuth client with `private_key_jwt` client authentication using the key from S4. Token: JWT, about 5 minutes, `aud` = receiving desk's bare domain, scopes as in the table under Contracts.
-- **Desks as resource servers** (Spring Security): `/agent/**` requires a valid registry-signed token, the right `aud`, and the scope for the envelope `type` from the table below; any other type is rejected. The envelope `from` must equal the token's client. Remove the `TODO S5` markers from S2 and S3.
+- **Desks as resource servers** (Spring Security): `/agent/**` requires a valid registry-signed token, the right `aud`, and the scope for the envelope `type` from the table below; any other type is rejected. The envelope `from` must equal the token's client. One narrow exception: `POST /agent/challenge` (S4 enrollment, before the desk has any token) stays open and keeps S4's nonce, `aud`, expiry and host checks. Remove the `TODO S5` markers from S2 and S3.
 - **Message signing:** the sender also signs the envelope (JWS, ES256) with nonce and expiry; the receiver checks it against the sender's registry-held key. This is what makes fingerprints provable.
-- **Fingerprints:** after sending or receiving, each desk posts `{ messageId, conversationId, sha256, from, to, type, sentAt }` to the registry. Registry stores them; a stored message on either desk can be re-hashed and checked.
+- **Fingerprints:** after sending or receiving, each desk posts `{ messageId, conversationId, sha256, from, to, type, sentAt }` to the registry. `sha256` is the hash of the full signed envelope (JWS included) exactly as sent. `POST /api/fingerprints` needs a registry token with `aud` = `registry.test` and scope `fingerprint:write`; the registry sets `reported_by` from the token's client and refuses a fingerprint where that client is neither `from` nor `to`. `GET` returns only conversations where the caller's desk is `from` or `to`; the registry's own admin audit page sees all rows (still no contents). Registry stores them; a stored message on either desk can be re-hashed and checked.
 - **Block:** registry admin action sets `BLOCKED`; no new tokens are issued. Tokens already issued would live up to 5 minutes, so desks also pull `GET /api/blocked` every 10 seconds and reject any call whose client is on that list. If a refresh fails, the desk keeps the last list it got and logs a warning. So the 10-second bound holds while the registry answers; if it is unreachable, the bound degrades to token expiry (up to 5 minutes), and the UI shows "block list stale". We accept that for the demo rather than refuse all calls while the registry is down.
 - Frontend: a "Network audit" AG Grid of fingerprints, and a "verify" button on a stored message.
 
@@ -34,6 +34,7 @@ Key rotation UI (document the process; rotating is "publish a new key in the car
   | `counter` | buyer | `quote:counter` |
   | `accept` | buyer | `quote:accept` |
   | `invoice.status` | supplier | `invoice:notify` |
+| (fingerprint report to the registry) | any desk | `fingerprint:write` |
 
 - Envelope gains a `signature` field (compact JWS over the canonical envelope without `signature`).
 - `POST /api/fingerprints`, `GET /api/fingerprints?conversationId=`.
