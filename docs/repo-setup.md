@@ -32,7 +32,7 @@ About 15 minutes in total.
    - Dependabot alerts and Dependabot security updates
    - Secret scanning and **push protection** (blocks a push that contains a key, before it's public)
    - Private vulnerability reporting
-   - **CodeQL: leave "Default setup" off.** We use the workflow file ("advanced setup"); with default setup on as well, the workflow's uploads are rejected.
+   - **Code scanning: turn it on, but leave CodeQL "Default setup" off.** Until code scanning is enabled, the CodeQL workflow fails with "Code scanning is not enabled for this repository". Under Code scanning → CodeQL analysis, choose **Advanced** (we already have the workflow file, so don't commit the one GitHub offers). With default setup on as well, the workflow's uploads are rejected.
 4. **Protect `main`.** Settings → Rules → Rulesets → New branch ruleset, name `main`, enforcement Active, target the default branch:
    - Restrict deletions; block force pushes
    - Require a pull request before merging, with **0** required approvals (so either of us can self-merge a small green PR near the deadline, as `agents/workflow.md` allows). Turn on "Dismiss stale approvals" only if you raise approvals to 1 later.
