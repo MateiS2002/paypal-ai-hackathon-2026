@@ -23,7 +23,8 @@ Two people, Matei (Claude Code) and Robert (Antigravity), each driving coding ag
 - The description says what changed, how to test it, and any new env variables or services.
 - The other person reviews when possible; a quick look beats a long wait. Near the deadline, self-merging a small green PR is fine.
 - Before merging, check that `docker compose up` still starts and the main demo flow still works.
-- CodeRabbit reviews every PR into `main` (drafts and titles containing `WIP` are skipped) and CodeQL runs as a required check. Both review against `agents/` and `docs/architecture.md`, so keep those accurate.
+- CodeRabbit reviews PRs into `main`, skipping drafts and titles containing `WIP` or `[skip review]`. It reviews against `agents/` and `docs/architecture.md` (set in `.coderabbit.yaml`), so keep those accurate.
+- CodeQL scans the code on every PR as the required check `Analyze (actions)`.
 - Address or reply to every CodeRabbit comment before merging; if one is wrong for this project, reply saying why so it learns. `@coderabbitai review` re-reviews new commits. More commands in [docs/repo-setup.md](../docs/repo-setup.md#day-to-day).
 - CODEOWNERS requests a review from both of us on every PR. Code-owner approval is not required.
 - Use the PR template's checklist.

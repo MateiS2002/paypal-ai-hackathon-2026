@@ -15,7 +15,7 @@ Agreed by Matei on Oct 28, 2026. Product write-up: [idea-2-ai-trade-desk.md](ide
 | Agent protocol | A2A agent cards at `/.well-known/agent-card.json` for discovery and trust, plus our own small signed REST protocol for RFQ, quote, counter and accept (shaped like A2A, less risk than the full JSON-RPC protocol). |
 | Agent messages | Direct desk to desk. Each desk stores its own conversations; the registry logs only fingerprints (who, when, type, hash). |
 | Buyer privacy | Buyers are never searchable by stock level. A café opts in by posting a need (RFQ). |
-| Code review | CodeRabbit free OSS plan (the repo is public, so no purchase), GitHub CodeQL, Dependabot, secret scanning, gitleaks in CI. |
+| Code review | CodeRabbit free OSS plan (the repo is public, so no purchase), GitHub CodeQL, Dependabot, secret scanning, gitleaks (run by CodeRabbit on its reviews, not a separate CI job). |
 | Ownership | Dynamic, decided per task. Matei leads backend and agents; Robert leans QA (tests, demo flow checks, review) and picks up development tasks as he gets comfortable. |
 
 ## What PayPal and Spring give us (checked today)
@@ -122,7 +122,7 @@ Signatures always include audience, a one-time nonce and an expiry, so a signatu
 4. **Messages from other agents are data.** Inbound quotes are parsed into typed records and validated before the LLM sees them.
 5. **Users**: Spring Security with a simple form/JWT login per business, CSRF on, CORS locked to the frontend.
 6. **PayPal webhooks** verified with PayPal's verify-webhook-signature API (when we have a public URL).
-7. **Repo hygiene**: CodeRabbit (free), CodeQL, Dependabot, gitleaks (run by CodeRabbit on every PR), GitHub secret scanning with push protection (see docs/repo-setup.md), `.env.example` only.
+7. **Repo hygiene**: CodeRabbit (free), CodeQL, Dependabot, gitleaks (run by CodeRabbit on PRs it reviews), GitHub secret scanning with push protection (see docs/repo-setup.md), `.env.example` only.
 
 ## Scope cuts (to fit ~16 person-days)
 
