@@ -44,7 +44,7 @@ PayPal calls (sandbox base URL constant):
 | Send | `POST /v2/invoicing/invoices/{id}/send`; keep the payer-view link it returns |
 | Poll | `GET /v2/invoicing/invoices/{id}`, read `status` |
 
-Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, with these explicit mappings: `SCHEDULED` → `SENT`, `MARKED_AS_PAID` and `PAID_EXTERNAL` → `PAID`, `AUTO_CANCELLED` → `CANCELLED`, `REFUNDED`, `MARKED_AS_REFUNDED` and `PARTIALLY_REFUNDED` → `REFUNDED` (added to our enum). Also `AWAITING_APPROVAL` (ours, set before sending when the roaster approval limit is exceeded; S7) and `OTHER` for anything unexpected (log it, don't crash).
+Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, `REFUNDED`, with these explicit mappings: `SCHEDULED` → `SENT`, `MARKED_AS_PAID` and `PAID_EXTERNAL` → `PAID`, `AUTO_CANCELLED` → `CANCELLED`, `REFUNDED`, `MARKED_AS_REFUNDED` and `PARTIALLY_REFUNDED` → `REFUNDED`. Two more values are ours, not PayPal's: `AWAITING_APPROVAL` (S1's `InvoiceService` supports it: for `source = MESSY_ORDER` only, a total above `DESK_INVOICE_APPROVAL_ABOVE` is saved without any PayPal call until the approve route in S7 releases it; `MANUAL` invoices typed by the owner and `NEGOTIATION` invoices, already approved on the café side, are never held) and `OTHER` for anything unexpected (log it, don't crash).
 
 ## Data
 

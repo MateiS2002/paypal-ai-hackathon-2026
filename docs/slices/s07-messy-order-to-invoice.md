@@ -41,7 +41,7 @@ Reading a real mailbox (show "email inbox: coming soon"). Photos and handwriting
 2. An ambiguous line is flagged, never silently guessed; the invoice can't be sent until it's resolved.
 3. Prices always come from the catalogue: an order text saying "at $2/kg" doesn't change the price (test).
 4. A PDF over 5 MB or a non-PDF file is rejected with a clear message.
-5. `InvoiceService` runs the roaster's approval limit (`DESK_INVOICE_APPROVAL_ABOVE`, a `BigDecimal`) in Java before sending: a confirmed order above it is saved as `AWAITING_APPROVAL` and is sent only after the owner presses "Approve and send" (test; no LLM involved). `POST /api/orders` returns the ledger row with that status.
+5. `InvoiceService` (S1) runs the roaster's approval limit, which applies to `MESSY_ORDER` invoices only, (`DESK_INVOICE_APPROVAL_ABOVE`, a `BigDecimal`) in Java before sending: a confirmed order above it is saved as `AWAITING_APPROVAL` and is sent only after the owner presses "Approve and send" (test; no LLM involved). `POST /api/orders` returns the ledger row with that status.
 6. The sent invoice behaves exactly like an S1 invoice (appears in PayPal sandbox, flips to PAID).
 
 ## Review-sensitive
