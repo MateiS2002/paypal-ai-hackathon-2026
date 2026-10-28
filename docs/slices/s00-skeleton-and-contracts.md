@@ -52,7 +52,7 @@ These are the shared contracts the workflow says go first. Put them in `contract
 | `ELASTIC_PASSWORD` | elasticsearch, registry | Added in S6. |
 | `DESK_DEMO_PASSWORD` | desks | Demo login password, same for every desk. |
 
-Per-desk settings that aren't secret (`DESK_ID`, `DESK_NAME`, `DESK_DOMAIN`, `DESK_LOCATION`, `DESK_PERSONA`, `DESK_SIMULATED`) live in `docker-compose.yml`, not `.env`.
+Per-desk settings that aren't secret (`DESK_ID`, `DESK_NAME`, `DESK_DOMAIN`, `DESK_LOCATION` as `lat,lon`, `DESK_REGION` as an ISO 3166-2 code such as `US-CA`, `DESK_TIME_ZONE` as an IANA zone such as `America/Los_Angeles`, `DESK_PERSONA`, `DESK_SIMULATED`) live in `docker-compose.yml`, not `.env`. Desks fail to start if `DESK_TIME_ZONE` isn't a valid zone.
 
 **Frontend to desk (REST + SSE):** every desk exposes `/api/**` for its own UI and one SSE stream `GET /api/events`. Events are `{"type": "invoice.updated" | "quote.received" | "approval.needed" | ..., "data": {...}}`. Each slice adds its own routes and event types to `contracts/desk-api.md`.
 

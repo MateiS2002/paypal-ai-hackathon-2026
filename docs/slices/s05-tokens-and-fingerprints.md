@@ -12,11 +12,11 @@ A 20-second security beat: a `curl` to the roaster's agent endpoint without a to
 
 ## In scope
 
-- **Registry as authorization server** (Spring Authorization Server): each VERIFIED business is an OAuth client with `private_key_jwt` client authentication using the key from S4. Token: JWT, about 5 minutes, `aud` = receiving desk's domain, scopes as in the table under Contracts.
-- **Desks as resource servers** (Spring Security): `/agent/**` requires a valid registry-signed token, the right `aud`, and the scope for the envelope `type` from the table below; any other type is rejected. The envelope `from` must equal the token's client. Remove the `TODO S5` markers from S2.
+- **Registry as authorization server** (Spring Authorization Server): each VERIFIED business is an OAuth client with `private_key_jwt` client authentication using the key from S4. Token: JWT, about 5 minutes, `aud` = receiving desk's bare domain, scopes as in the table under Contracts.
+- **Desks as resource servers** (Spring Security): `/agent/**` requires a valid registry-signed token, the right `aud`, and the scope for the envelope `type` from the table below; any other type is rejected. The envelope `from` must equal the token's client. Remove the `TODO S5` markers from S2 and S3.
 - **Message signing:** the sender also signs the envelope (JWS, ES256) with nonce and expiry; the receiver checks it against the sender's registry-held key. This is what makes fingerprints provable.
 - **Fingerprints:** after sending or receiving, each desk posts `{ messageId, conversationId, sha256, from, to, type, sentAt }` to the registry. Registry stores them; a stored message on either desk can be re-hashed and checked.
-- **Block:** registry admin action sets `BLOCKED`; no new tokens are issued. Tokens already issued would live up to 5 minutes, so desks also pull `GET /api/blocked` every 10 seconds and reject any call whose client is on that list. If a refresh fails, the desk keeps the last list it got and logs a warning; tokens still expire after 5 minutes, so the worst case is bounded.
+- **Block:** registry admin action sets `BLOCKED`; no new tokens are issued. Tokens already issued would live up to 5 minutes, so desks also pull `GET /api/blocked` every 10 seconds and reject any call whose client is on that list. If a refresh fails, the desk keeps the last list it got and logs a warning. So the 10-second bound holds while the registry answers; if it is unreachable, the bound degrades to token expiry (up to 5 minutes), and the UI shows "block list stale". We accept that for the demo rather than refuse all calls while the registry is down.
 - Frontend: a "Network audit" AG Grid of fingerprints, and a "verify" button on a stored message.
 
 ## Out of scope
@@ -25,7 +25,7 @@ Key rotation UI (document the process; rotating is "publish a new key in the car
 
 ## Contracts
 
-- Token (plain HTTP inside compose only; any hosted deployment uses HTTPS): `POST http://registry.test/oauth2/token`, `grant_type=client_credentials`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `scope`, and `resource=http://roaster.test` (RFC 8707) for the receiver. An `OAuth2TokenCustomizer` copies `resource` into the JWT's `aud` after checking it is a VERIFIED, non-blocked business.
+- Token (plain HTTP inside compose only; any hosted deployment uses HTTPS): `POST http://registry.test/oauth2/token`, `grant_type=client_credentials`, `client_id=<sender domain>`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `client_assertion` (a JWT signed ES256 with the desk's private key: `iss` = `sub` = client id, `aud` = `http://registry.test/oauth2/token`, `jti`, `exp` at most 60 s ahead; the registry rejects a reused `jti`), `scope`, and `resource=http://roaster.test` (RFC 8707) for the receiver. An `OAuth2TokenCustomizer` checks the resource is a VERIFIED, non-blocked business and sets the JWT's `aud` to its bare domain (`roaster.test`). Canonical audience everywhere is the bare domain: the S4 challenge (`registry.test`), access tokens and the receiver's check all compare exact strings; only the `resource` parameter and the client-assertion `aud` use URLs, because the RFCs require them.
 - Scope per inbound message type. Responses (`quote` or `reject` to an RFQ, a revised `quote` to a counter, `invoice` to an accept) travel in the HTTP response of the same call and need no scope of their own.
 
   | Inbound type | Sender | Scope |

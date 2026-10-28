@@ -1,6 +1,6 @@
 # S3: Counter, approve, invoice
 
-**Owner:** Matei · **Estimate:** 1.5 days · **Depends on:** S1, S2
+**Owner:** Matei · **Estimate:** 1.5 days · **Depends on:** S1, S2 (S5 adds authentication)
 
 ## Goal
 
@@ -28,7 +28,7 @@ Multiple counter rounds, partial deliveries, the malicious supplier (S8).
 
 ## Contracts
 
-Agent message types added: `counter` (`{ "quoteId", "unitPrice": Money }`), `quote` (revised), `accept` (`{ "quoteId" }`), reply `invoice` (`{ "paypalInvoiceId", "payerViewUrl", "total": Money, "status" }`), `reject`, and `invoice.status` from supplier to buyer (`{ "paypalInvoiceId", "status", "updatedAt" }`). `status` uses S1's enum. The café ignores an `invoice.status` for an invoice id it doesn't hold or from a desk that isn't that invoice's supplier.
+Agent message types added: `counter` (`{ "quoteId", "unitPrice": Money }`), `quote` (revised), `accept` (`{ "quoteId" }`), reply `invoice` (`{ "paypalInvoiceId", "payerViewUrl", "total": Money, "status" }`), `reject`, and `invoice.status` from supplier to buyer (`{ "paypalInvoiceId", "status", "updatedAt" }`). `status` uses S1's enum. The café ignores an `invoice.status` for an invoice id it doesn't hold or from a desk that isn't that invoice's supplier. Until S5 lands, `from` is only claimed, not proven, so `invoice.status` is unauthenticated in S3 builds; S5's `invoice:notify` scope and envelope signature close that gap. Mark the handler `TODO S5`.
 
 Desk API (café): `POST /api/needs/{id}/counter`, `GET /api/needs/{id}/recommendation`, `POST /api/approvals/{id}` with `{ "decision": "APPROVE" | "REJECT" }`, `GET /api/payables`, `GET/PUT /api/policy`.
 

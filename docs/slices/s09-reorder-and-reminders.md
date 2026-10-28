@@ -20,9 +20,9 @@ Two small autonomy moments from the demo flow: the café's agent starts a reorde
 
 **Late-payer reminder (1 day)**
 
-- Overdue = status `SENT` or `UNPAID` and due date in the past. A demo-only "pretend it's a week later" switch shifts the desk clock, labelled as a demo control.
+- Overdue = status `SENT` or `UNPAID` and due date before today in the desk's `DESK_TIME_ZONE`. A demo-only "pretend it's a week later" switch shifts the desk clock, labelled as a demo control.
 - Roaster agent drafts a short, polite note (LLM, strict JSON schema `{ "subject", "note" }`); Java validates it (lengths within PayPal's limits, plain text, no links) and falls back to a fixed template if it fails. Java decides who gets one (at most one reminder per invoice per 3 days).
-- Send through **PayPal's MCP server** (`@paypal/mcp` or `mcp.sandbox.paypal.com`) with Spring AI's MCP client and a tool allowlist of `send_invoice_reminder` and `list_invoices` only. Both paths send the validated `subject` and `note` and nothing else: the MCP call passes `invoice_id`, `subject` and `note` (no `additional_recipients`), and the REST call sends the same with `send_to_invoicer: false`, so the reminder only reaches the invoice's own recipient. Fallback: `POST /v2/invoicing/invoices/{id}/remind` from our own client, with a `PayPal-Request-Id` stored per reminder and reused on retries. Fall back only when the MCP call failed before it was sent (server unreachable); if the MCP result is ambiguous (timeout after sending), mark the reminder `UNKNOWN` and leave a retry to the owner, so nobody gets two.
+- Send through **PayPal's MCP server** (`@paypal/mcp` or `mcp.sandbox.paypal.com`) with Spring AI's MCP client and a tool allowlist of `send_invoice_reminder` and `list_invoices` only. Both paths send the validated `subject` and `note` and nothing else: the MCP call passes `invoice_id`, `subject` and `note` (no `additional_recipients`), so the reminder only reaches the invoice's own recipient. Fallback: `POST /v2/invoicing/invoices/{id}/remind` from our own client with `send_to_invoicer: false`. Known limitation: we don't rely on the REST call carrying our subject and note, so a REST reminder may arrive with PayPal's default text; the UI says so when `deliveryPath` is `REST`. Each attempt stores a `PayPal-Request-Id`, reused on retries. Fall back only when the MCP call failed before it was sent (server unreachable); if the MCP result is ambiguous (timeout after sending), mark the reminder `UNKNOWN` and leave a retry to the owner, so nobody gets two.
 
 ## Out of scope
 
@@ -34,7 +34,7 @@ Café: `GET /api/inventory`, `POST /api/inventory/{sku}/usage`, rules inside `GE
 
 ## Data
 
-Café: `inventory_item` (sku, description, stock_qty, unit), `reorder_rule`. Roaster: `invoice.due_date`, `invoice.last_reminded_at`.
+Café: `inventory_item` (sku, description, stock_qty, unit), `reorder_rule`. Roaster: `invoice.due_date`, `invoice.last_reminded_at` (set only on `SENT`), and `reminder_attempt` (id, invoice_id, status `SENT` | `UNKNOWN` | `FAILED`, delivery_path `MCP` | `REST`, paypal_request_id, created_at). The 3-day rule counts `SENT` and `UNKNOWN` attempts, so an ambiguous one also blocks an automatic second send.
 
 ## Acceptance criteria
 

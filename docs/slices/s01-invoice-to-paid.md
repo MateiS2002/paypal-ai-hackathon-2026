@@ -48,7 +48,7 @@ Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAI
 
 ## Data
 
-Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with a net-14 term in the roaster's configured time zone), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later), `created_at`, `updated_at`, `paid_at`.
+Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with a net-14 term, counting days in the desk's `DESK_TIME_ZONE` from S0), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later), `created_at`, `updated_at`, `paid_at`.
 
 Table `invoice_line`: `invoice_id`, `description`, `quantity`, `unit_price_minor`.
 
