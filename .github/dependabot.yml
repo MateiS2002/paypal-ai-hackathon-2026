@@ -54,3 +54,7 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # maven:3.9-eclipse-temurin-21 reads as version 3.9, so a JDK bump in the
+      # suffix (21 to 26) is not a major and would slip through. 3.9 already
+      # floats to the latest Maven patch, so skip this image entirely.
+      - dependency-name: "maven"
