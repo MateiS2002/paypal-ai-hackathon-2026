@@ -6,12 +6,19 @@ Team entry by **Matei** and **Robert** for the [PayPal AI Hackathon 2026](https:
 
 ## Status
 
-The product idea is **not locked yet** (decision due Oct 29, 2026). Two candidates are written up in [`docs/`](../docs/):
+**Locked on Oct 28, 2026: Idea 2, the AI trade desk** ([product doc](../docs/idea-2-ai-trade-desk.md), [architecture and stack](../docs/architecture.md)). Idea 1 is archived in `docs/` for reference.
 
-- [Idea 1: AI shopping OS](../docs/idea-1-ai-shopping-os.md) (B2C, Electron app, Channel3 + PayPal + AG Grid)
-- [Idea 2: AI trade desk](../docs/idea-2-ai-trade-desk.md) (B2B, invoices + agent-to-agent supplier network)
+Stack: Java 21, Spring Boot 4.1, Spring AI 2.0 (OpenAI API, model set by `OPENAI_MODEL`), Spring Security, Postgres, Elasticsearch, React (Vite) + AG Grid Community, nginx for static landing pages and agent cards, all under `docker compose`.
 
-Until it's locked, don't scaffold product code for one idea unless asked. Once it's locked, this section gets replaced with the chosen idea, stack, folder layout and commands.
+Key design rules (details in the architecture doc):
+
+- Money rules and approval limits are enforced in Java code, never only in a prompt.
+- Agents keep their own private keys; the registry stores public keys only and issues short-lived scoped tokens.
+- Agents message each other directly; the registry logs fingerprints, not contents.
+- Buyers are never searchable by stock level; they opt in by posting a need.
+- Simulated suppliers are labelled SIMULATED in code and UI.
+
+Ownership is dynamic and decided per task: Matei leads backend and agents, Robert leans QA and picks up development tasks as he goes. Folder layout and run commands get added here once the skeleton lands.
 
 ## Submission requirements (missing any of these fails judging stage 1)
 
@@ -36,6 +43,7 @@ Judging criteria (equal weight): Technological Implementation (first tie-breaker
 
 | Need | Look in |
 | --- | --- |
+| Architecture, stack and decisions | [docs/architecture.md](../docs/architecture.md) |
 | Rules, prizes, timeline | [docs/strategy.md](../docs/strategy.md) |
 | Idea comparison and effort estimates | [docs/idea-scorecard.md](../docs/idea-scorecard.md) |
 | Which agent-checkout APIs exist (PayPal Agent Toolkit, Channel3, Rye, ACP, AP2) | [docs/research-agentic-checkout.md](../docs/research-agentic-checkout.md) |

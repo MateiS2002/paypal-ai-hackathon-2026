@@ -1,9 +1,10 @@
 # Planning docs
 
-Status as of Oct 27, 2026: two candidate ideas, to be decided by Matei and Robert by **Oct 29**.
+Status as of Oct 28, 2026: **Idea 2, the AI trade desk, is locked.** See [architecture.md](architecture.md) for the stack and design decisions.
 
 | Doc | What's in it |
 | --- | --- |
+| [architecture.md](architecture.md) | Architecture, tech stack and agreed design decisions for the trade desk |
 | [strategy.md](strategy.md) | Rules summary, prize targets and timeline |
 | [idea-1-ai-shopping-os.md](idea-1-ai-shopping-os.md) | Idea 1 (B2C): fullscreen AI shopping "OS" |
 | [idea-2-ai-trade-desk.md](idea-2-ai-trade-desk.md) | Idea 2 (B2B): AI trade desk and supplier network |
