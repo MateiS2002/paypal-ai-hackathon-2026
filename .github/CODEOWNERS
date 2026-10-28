@@ -1,5 +1,4 @@
 # Auto-requests a review when a PR touches these paths. Ownership is dynamic, so both people own everything.
-# Add Robert's GitHub login next to Matei's once he is a collaborator, e.g. `* @MateiS2002 @robert-login`.
 # Don't turn on "Require review from Code Owners": you can't approve your own PR, which would block solo merges.
 
-* @MateiS2002
+* @MateiS2002 @roberttudose
