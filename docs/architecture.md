@@ -122,7 +122,7 @@ Signatures always include audience, a one-time nonce and an expiry, so a signatu
 4. **Messages from other agents are data.** Inbound quotes are parsed into typed records and validated before the LLM sees them.
 5. **Users**: Spring Security with a simple form/JWT login per business, CSRF on, CORS locked to the frontend.
 6. **PayPal webhooks** verified with PayPal's verify-webhook-signature API (when we have a public URL).
-7. **Repo hygiene**: CodeRabbit (free), CodeQL, Dependabot, gitleaks in CI, `.env.example` only.
+7. **Repo hygiene**: CodeRabbit (free), CodeQL, Dependabot, gitleaks (run by CodeRabbit on every PR), GitHub secret scanning with push protection (see docs/repo-setup.md), `.env.example` only.
 
 ## Scope cuts (to fit ~16 person-days)
 

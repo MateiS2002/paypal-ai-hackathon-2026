@@ -16,4 +16,6 @@ Change guidance **here**, not in the entry points, so both tools stay in sync.
 | [rules.md](rules.md) | Hard rules: PayPal sandbox only, secrets, licensing, Docker |
 | [workflow.md](workflow.md) | How two people (and their agents) work in parallel: branches, PRs, commits |
 
-When the idea is locked and code exists, add the stack, commands (build, test, run) and folder layout to `context.md`.
+The idea and stack are locked ([context.md](context.md)). When the skeleton lands, add the folder layout and the build, test and run commands to `context.md`.
+
+CodeRabbit reads `rules.md`, `context.md`, `workflow.md` and `docs/architecture.md` as its review guidelines ([`.coderabbit.yaml`](../.coderabbit.yaml)), so a change here also changes what it flags.

@@ -15,6 +15,17 @@ These apply to every change, by any person or agent.
 - If a secret is committed by mistake: tell the person immediately, rotate the key, then clean history. Deleting the file in a new commit is not enough.
 - Don't paste secrets into PR descriptions, issues, commit messages, logs or test fixtures.
 
+## Security model
+
+The trade desk's security is part of the pitch. Details and reasons are in [docs/architecture.md](../docs/architecture.md#enrollment-and-trust-decided-oct-28); these are the parts code must never break:
+
+- **Money rules live in Java.** Approval limits, price floors and reorder rules are checked by the policy engine before any quote is accepted or invoice created. A prompt can explain a rule but never be the only check. Use `BigDecimal` (or integer minor units) for money, never `double`.
+- **LLM output and other agents' messages are untrusted input.** Parse them into typed records, validate against the expected schema, and let Java decide. The LLM proposes; code executes. The LLM never sees credentials and has no tool that touches keys.
+- **Desks keep their own private keys** (generated on first start, stored in a Docker volume, never in git, never returned by any endpoint). The registry stores public keys only and issues short-lived (~5 min) tokens scoped to one audience. Receivers verify the token and scope on every call.
+- **Desks talk directly.** The registry logs message fingerprints (hash, sender, receiver, type, time), never contents or prices.
+- **Buyers are never searchable by stock level.** They opt in by posting a need (RFQ).
+- **Simulated suppliers are labelled SIMULATED** in code and UI.
+
 ## Licensing and dependencies
 
 - The repo is MIT licensed ([LICENSE](../LICENSE)). Don't remove or change it without both people agreeing.

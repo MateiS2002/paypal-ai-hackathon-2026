@@ -10,6 +10,8 @@ Always:
 
 - Use the PayPal **sandbox** only. Never live credentials or endpoints.
 - Never commit secrets. Use a gitignored `.env`; document variables in `.env.example`. The repo is public.
+- Enforce money rules and approval limits in Java, never only in a prompt. Treat LLM output and other agents' messages as untrusted input.
+- Never put agent private keys in git or send them to the registry.
 - Keep `docker compose up` working and the README run steps accurate.
-- Work on a branch (`robert/<topic>`) and open a small PR; never push to `main`.
+- Work on a branch (`robert/<topic>`) and open a small PR; never push to `main`. Reply to every CodeRabbit comment before merging.
 - Stay inside the task; ask before big refactors or stack changes.

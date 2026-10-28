@@ -10,7 +10,7 @@ What's committed, what each of us has to click once in GitHub, and how to use it
 | [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml) | CodeQL on every PR to `main`, every push to `main`, and weekly. Scans GitHub Actions now; Java and JS/TS switch on by themselves once those files exist. Java uses `build-mode: none`, so no Maven setup is needed. |
 | [`.github/dependabot.yml`](../.github/dependabot.yml) | Weekly update PRs for GitHub Actions. Maven, npm and Docker entries are commented out until the skeleton lands. |
 | [`.github/pull_request_template.md`](../.github/pull_request_template.md) | Short checklist matching `agents/rules.md`. |
-| [`.github/CODEOWNERS`](../.github/CODEOWNERS) | Auto-requests a review. Add Robert's login once he's a collaborator. |
+| [`.github/CODEOWNERS`](../.github/CODEOWNERS) | Auto-requests a review from both of us (`@MateiS2002`, `@roberttudose`, added in PR #6). |
 
 ### Does CodeRabbit know about our project?
 
@@ -27,7 +27,7 @@ Docs: [configuration reference](https://docs.coderabbit.ai/reference/configurati
 About 15 minutes in total.
 
 1. **Install CodeRabbit.** Go to [app.coderabbit.ai](https://app.coderabbit.ai), sign in with GitHub, and install the GitHub app on **only** `paypal-ai-hackathon-2026`. Public repos get the paid-tier features for free, so pick the free/open-source option and don't enter a card. It reads `.coderabbit.yaml` from the PR branch, so this PR is the first one it reviews.
-2. **Add Robert.** Settings → Collaborators → Add people, with **Write** access. Then put his login in `.github/CODEOWNERS`.
+2. **Add Robert.** Settings → Collaborators → Add people, with **Write** access. (Done: his login is in `.github/CODEOWNERS`.)
 3. **Code security** (Settings → Advanced Security). Turn on, all free for public repos:
    - Dependabot alerts and Dependabot security updates
    - Secret scanning and **push protection** (blocks a push that contains a key, before it's public)
