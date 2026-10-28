@@ -25,7 +25,7 @@ None for judges. For us: a fresh clone plus `.env` gives green health checks for
   ```
 
 - `trade-desk` and `registry`: Java 21, Spring Boot 4.1, Actuator `/actuator/health` (open, used only by compose health checks and not proxied by the frontend), Flyway with an empty first migration, Spring Security on with one demo login per desk.
-- `docker-compose.yml` with `postgres` (one database per service, created by an init script), `cafe`, `roaster`, `registry`, `web`, `frontend`. Health checks and `depends_on: condition: service_healthy`. Elasticsearch and the simulated suppliers are added by the slices that need them (S6, S2).
+- `docker-compose.yml` with `postgres` (one database per service, created by an init script), `cafe`, `roaster`, `registry`, `web`, `frontend`, `elasticsearch`. Health checks and `depends_on: condition: service_healthy`. Simulated suppliers are added as `trade-desk` instances by S2.
 - `frontend` nginx proxies `/cafe/api/**` to the café desk and `/roaster/api/**` to the roaster desk, so the browser talks to one origin and CORS stays closed.
 - A single CI-free check: `docker compose up --wait` succeeds locally. CodeQL is the only required GitHub check.
 - `agents/context.md` gets the folder layout and run commands (its own TODO says so).
@@ -49,7 +49,7 @@ These are the shared contracts the workflow says go first. Put them in `contract
 | `PAYPAL_SANDBOX_BUYER_EMAIL` | café | The sandbox buyer account that receives invoices. |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | desks, registry | Model defaults to GPT-6 Luna. |
 | `POSTGRES_PASSWORD` | postgres, desks, registry | |
-| `ELASTIC_PASSWORD` | elasticsearch, registry | Added in S6. |
+| `ELASTIC_PASSWORD` | elasticsearch, registry | In `.env.example` from S0 so the service starts; used by S6. |
 | `DESK_DEMO_PASSWORD` | desks | Demo login password, same for every desk. |
 
 Per-desk settings that aren't secret (`DESK_ID`, `DESK_NAME`, `DESK_DOMAIN`, `DESK_LOCATION` as `lat,lon`, `DESK_REGION` as an ISO 3166-2 code such as `US-CA`, `DESK_TIME_ZONE` as an IANA zone such as `America/Los_Angeles`, `DESK_INVOICE_APPROVAL_ABOVE` as a decimal amount (roaster only, used by S7), `DESK_PERSONA`, `DESK_SIMULATED`) live in `docker-compose.yml`, not `.env`. Desks fail to start if `DESK_TIME_ZONE` isn't a valid zone.

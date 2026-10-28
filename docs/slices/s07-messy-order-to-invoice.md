@@ -28,11 +28,12 @@ Reading a real mailbox (show "email inbox: coming soon"). Photos and handwriting
 | Route | What it does |
 | --- | --- |
 | `POST /api/orders/parse` | `multipart` (`text` or `file`), returns `DraftOrder` with matches and flags, no side effects |
-| `POST /api/orders` | Confirmed draft, creates and sends the invoice, returns the ledger row |
+| `POST /api/orders` | Confirmed draft; needs an `Idempotency-Key` like S1. Creates and sends the invoice, or stops at `AWAITING_APPROVAL` above the limit. Returns the ledger row |
+| `POST /api/invoices/{id}/approve` | Owner-authenticated. Moves `AWAITING_APPROVAL` to sent using the stored `invoice_operation` and its `PayPal-Request-Id`; repeating it on an already sent invoice returns the existing row with no second PayPal call |
 
 ## Data
 
-`customer` (name, email, unique email) if S1 didn't add it. `invoice.source = MESSY_ORDER` and `invoice.source_text` (both already in S1's migration, so S7 adds no migration for them; the original text, for the partner history).
+`customer` is owned by S1 (this slice only reads and inserts rows). `invoice.source = MESSY_ORDER` and `invoice.source_text` (both already in S1's migration, so S7 adds no migration for them; the original text, for the partner history).
 
 ## Acceptance criteria
 

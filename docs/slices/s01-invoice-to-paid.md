@@ -31,7 +31,7 @@ Desk API (roaster):
 | Route | What it does |
 | --- | --- |
 | `GET /api/invoices` | Ledger rows |
-| `POST /api/invoices` | Create and send. Needs an `Idempotency-Key` header (client-generated UUID, kept across browser retries). Body: `{ "customer": { "name", "email" }, "lines": [{ "description", "quantity", "unitPrice": Money }], "sourceText"? }` |
+| `POST /api/invoices` | Create and send. Needs an `Idempotency-Key` header (client-generated UUID, kept across browser retries). Body: `{ "customer": { "name", "email" }, "lines": [{ "description", "quantity", "unitPrice": Money }] }`. The route takes no `sourceText` and always sets `source = MANUAL`; only `InvoiceService`'s Java method accepts the optional `sourceText`, which S7 sets |
 | `GET /api/events` | SSE, emits `invoice.updated` with the ledger row |
 
 PayPal calls (sandbox base URL constant):
@@ -44,11 +44,13 @@ PayPal calls (sandbox base URL constant):
 | Send | `POST /v2/invoicing/invoices/{id}/send`; keep the payer-view link it returns |
 | Poll | `GET /v2/invoicing/invoices/{id}`, read `status` |
 
-Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, plus `AWAITING_APPROVAL` (ours, set before sending when the roaster approval limit is exceeded; S7) and `OTHER` for anything unexpected (log it, don't crash).
+Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, with these explicit mappings: `SCHEDULED` → `SENT`, `MARKED_AS_PAID` and `PAID_EXTERNAL` → `PAID`, `AUTO_CANCELLED` → `CANCELLED`, `REFUNDED`, `MARKED_AS_REFUNDED` and `PARTIALLY_REFUNDED` → `REFUNDED` (added to our enum). Also `AWAITING_APPROVAL` (ours, set before sending when the roaster approval limit is exceeded; S7) and `OTHER` for anything unexpected (log it, don't crash).
 
 ## Data
 
-Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with `payment_term_type = DUE_ON_DATE_SPECIFIED` and an explicit `due_date` of today + 14 days, counted in the desk's `DESK_TIME_ZONE` from S0, because PayPal has no NET_14 term), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later; the column is a plain text/enum with all three values and `source_text` exists from the S1 Flyway migration, so S7 needs no schema change for them), `source_text` (nullable; the original order text, set only for `MESSY_ORDER`), `created_at`, `updated_at`, `paid_at`.
+Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with `detail.payment_term.term_type = DUE_ON_DATE_SPECIFIED` and an explicit `detail.payment_term.due_date` of today + 14 days, counted in the desk's `DESK_TIME_ZONE` from S0, because PayPal has no NET_14 term), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later; the column is a plain text/enum with all three values and `source_text` exists from the S1 Flyway migration, so S7 needs no schema change for them), `source_text` (nullable; the original order text, set only for `MESSY_ORDER`), `created_at`, `updated_at`, `paid_at`.
+
+Table `customer`: `id`, `name`, `email` (unique); created here in S1's migration (seeded with the demo's Bean There) and reused by S7. The new-invoice form finds or creates the customer by email.
 
 Table `invoice_line`: `invoice_id`, `description`, `quantity` (decimal(10,3), positive), `unit_price_minor`, `line_total_minor`.
 
