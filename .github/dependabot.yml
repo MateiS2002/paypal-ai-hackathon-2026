@@ -1,3 +1,7 @@
+# Calm Dependabot for the hackathon: one grouped PR per ecosystem per week,
+# minor and patch only. Majors would break the locked stack (Java 21,
+# Spring Boot 4.1, Spring AI 2.0, Node 22 LTS), so they are ignored here.
+# Security updates are not affected by these rules and still arrive.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -12,17 +16,41 @@ updates:
     directories: ["/trade-desk", "/registry"]
     schedule:
       interval: weekly
+    open-pull-requests-limit: 2
     groups:
-      spring:
-        patterns: ["org.springframework*"]
+      maven:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # Boot 4.1 and Spring AI 2.0 are locked; take their patch releases only.
+      - dependency-name: "org.springframework.boot:*"
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: "org.springframework.ai:*"
+        update-types: ["version-update:semver-minor"]
+
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
+    open-pull-requests-limit: 2
     groups:
       frontend:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Base images. The tag's major is the JDK or Node version, so majors stay
+  # ignored; nginx minor bumps still come through.
   - package-ecosystem: docker
     directories: ["/trade-desk", "/registry", "/frontend", "/web"]
     schedule:
       interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      base-images:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
