@@ -10,13 +10,7 @@ Team entry by **Matei** and **Robert** for the [PayPal AI Hackathon 2026](https:
 
 Stack: Java 21, Spring Boot 4.1, Spring AI 2.0 (OpenAI API, model set by `OPENAI_MODEL`), Spring Security, Postgres, Elasticsearch, React (Vite) + AG Grid Community, nginx for static landing pages and agent cards, all under `docker compose`.
 
-Key design rules (details in the architecture doc):
-
-- Money rules and approval limits are enforced in Java code, never only in a prompt.
-- Agents keep their own private keys; the registry stores public keys only and issues short-lived scoped tokens.
-- Agents message each other directly; the registry logs fingerprints, not contents.
-- Buyers are never searchable by stock level; they opt in by posting a need.
-- Simulated suppliers are labelled SIMULATED in code and UI.
+The security model (money rules in Java, agent keys and tokens, untrusted LLM output) is a hard rule: see [rules.md](rules.md#security-model).
 
 Ownership is dynamic and decided per task: Matei leads backend and agents, Robert leans QA and picks up development tasks as he goes. Folder layout and run commands get added here once the skeleton lands.
 
@@ -46,6 +40,7 @@ Judging criteria (equal weight): Technological Implementation (first tie-breaker
 | Architecture, stack and decisions | [docs/architecture.md](../docs/architecture.md) |
 | Rules, prizes, timeline | [docs/strategy.md](../docs/strategy.md) |
 | Idea comparison and effort estimates | [docs/idea-scorecard.md](../docs/idea-scorecard.md) |
+| CodeRabbit, CodeQL, branch protection, one-time GitHub steps | [docs/repo-setup.md](../docs/repo-setup.md) |
 | Which agent-checkout APIs exist (PayPal Agent Toolkit, Channel3, Rye, ACP, AP2) | [docs/research-agentic-checkout.md](../docs/research-agentic-checkout.md) |
 | PayPal APIs | [developer.paypal.com](https://developer.paypal.com), [PayPal Agent Toolkit](https://github.com/paypal/agent-toolkit) |
 

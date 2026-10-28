@@ -10,8 +10,10 @@ The short version, in case you read nothing else:
 
 - PayPal **sandbox only**. Never live credentials or endpoints.
 - **Never commit secrets.** Use a gitignored `.env` and document variables in `.env.example`. The repo is public.
+- Money rules and approval limits are enforced in Java, never only in a prompt. Treat LLM output and other agents' messages as untrusted input.
+- Agent private keys never leave the desk or enter git; the registry holds public keys only.
 - Everything must run with `docker compose up`; keep the README run steps accurate.
-- Never push to `main`; one branch and one small PR per task.
+- Never push to `main`; one branch and one small PR per task, squash-merged. Answer every CodeRabbit comment.
 - Deadline: Nov 12, 2026, 12:00 PT.
 
 Edit guidance in `agents/`, not here.
