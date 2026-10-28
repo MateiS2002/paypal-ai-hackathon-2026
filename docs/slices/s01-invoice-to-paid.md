@@ -31,7 +31,7 @@ Desk API (roaster):
 | Route | What it does |
 | --- | --- |
 | `GET /api/invoices` | Ledger rows |
-| `POST /api/invoices` | Create and send. Body: `{ "customer": { "name", "email" }, "lines": [{ "description", "quantity", "unitPrice": Money }], "sourceText"? }` |
+| `POST /api/invoices` | Create and send. Needs an `Idempotency-Key` header (client-generated UUID, kept across browser retries). Body: `{ "customer": { "name", "email" }, "lines": [{ "description", "quantity", "unitPrice": Money }], "sourceText"? }` |
 | `GET /api/events` | SSE, emits `invoice.updated` with the ledger row |
 
 PayPal calls (sandbox base URL constant):
@@ -44,13 +44,17 @@ PayPal calls (sandbox base URL constant):
 | Send | `POST /v2/invoicing/invoices/{id}/send`; keep the payer-view link it returns |
 | Poll | `GET /v2/invoicing/invoices/{id}`, read `status` |
 
-Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, plus `OTHER` for anything unexpected (log it, don't crash).
+Our status enum maps PayPal's: `DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, plus `AWAITING_APPROVAL` (ours, set before sending when the roaster approval limit is exceeded; S7) and `OTHER` for anything unexpected (log it, don't crash).
 
 ## Data
 
-Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with a net-14 term, counting days in the desk's `DESK_TIME_ZONE` from S0), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later), `source_text` (nullable; the original order text, set only for `MESSY_ORDER`), `created_at`, `updated_at`, `paid_at`.
+Table `invoice`: `id`, `paypal_invoice_id` (unique), `invoice_number`, `customer_name`, `customer_email`, `total_minor` (bigint, cents), `currency`, `status`, `payer_view_url`, `due_date` (a date, read from PayPal's `detail.payment_term.due_date`; we create invoices with `payment_term_type = DUE_ON_DATE_SPECIFIED` and an explicit `due_date` of today + 14 days, counted in the desk's `DESK_TIME_ZONE` from S0, because PayPal has no NET_14 term), `source` (`MANUAL` now; `NEGOTIATION`, `MESSY_ORDER` later; the column is a plain text/enum with all three values and `source_text` exists from the S1 Flyway migration, so S7 needs no schema change for them), `source_text` (nullable; the original order text, set only for `MESSY_ORDER`), `created_at`, `updated_at`, `paid_at`.
 
-Table `invoice_line`: `invoice_id`, `description`, `quantity`, `unit_price_minor`.
+Table `invoice_line`: `invoice_id`, `description`, `quantity` (decimal(10,3), positive), `unit_price_minor`, `line_total_minor`.
+
+Rounding: each line total is `quantity × unit price` rounded `HALF_UP` to the cent, and `total_minor` is the sum of the rounded line totals. The same rounded values go into the PayPal payload (unit amount and quantity per line), so our total and PayPal's agree to the cent.
+
+Idempotency: the first call stores an `invoice_operation` row (`idempotency_key` unique, `request_hash`, `paypal_request_id`, `step` = CREATING / CREATED / SENT, `invoice_id`) before any PayPal call. A repeat with the same key and body returns the stored result or resumes from `step` (send only, if the draft exists), always reusing the same `paypal_request_id`; the same key with a different body is 409. A browser double-click or timeout therefore never creates a second PayPal invoice.
 
 ## Acceptance criteria
 
@@ -58,9 +62,10 @@ Table `invoice_line`: `invoice_id`, `description`, `quantity`, `unit_price_minor
 2. The same invoice is visible in the roaster's sandbox merchant account at sandbox.paypal.com.
 3. Opening the row's PayPal link and paying with the sandbox buyer account flips the row to PAID in under 10 seconds, with no refresh.
 4. Restarting the roaster container keeps the ledger (Postgres) and the poller picks up open invoices again.
-5. Totals are computed in Java with `BigDecimal` and match PayPal's total to the cent; an invoice with a non-positive quantity or price is rejected with 400 before any PayPal call.
+5. Totals are computed in Java with `BigDecimal` using the rounding rule above (a 0.333 kg line is tested) and match PayPal's total to the cent; an invoice with a non-positive quantity or price is rejected with 400 before any PayPal call.
 6. Wrong PayPal credentials show a readable error in the UI, not a stack trace, and nothing secret is logged.
-7. Unit tests cover the total calculation and the status mapping; one integration test stubs PayPal with WireMock.
+7. Two identical POSTs with the same `Idempotency-Key` produce one PayPal invoice; a crash between create and send resumes with the send (test with WireMock).
+8. Unit tests cover the total calculation and the status mapping; one integration test stubs PayPal with WireMock.
 
 ## Review-sensitive
 
