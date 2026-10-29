@@ -56,7 +56,7 @@ Example: [envelope-rfq.json](examples/envelope-rfq.json).
 | `rfqId` | UUID | The `messageId` of the `rfq` this answers. |
 | `supplierName` | string | Display name, 1 to 100 characters. Self-declared until S4 verifies the agent card. |
 | `simulated` | boolean | `true` for SIMULATED suppliers; the café shows a SIMULATED badge. |
-| `unitPrice` | Money | Greater than 0. In S2 the currency must be `USD`. Set by the supplier's Java code, never by its LLM, and never below its floor price. |
+| `unitPrice` | Money | Greater than 0 and in whole cents (at most 2 decimal places, though Money allows 4), because quotes are stored in minor units; a finer price is dropped, never rounded. In S2 the currency must be `USD`. Set by the supplier's Java code, never by its LLM, and never below its floor price. |
 | `quantity` | decimal string | What the supplier offers for this RFQ: greater than 0, at most the requested quantity. Less than requested means a partial offer. |
 | `availableQuantity` | decimal string | The supplier's current stock in the same unit, 0 or more and at least `quantity`. Shown in the offers grid's stock column. |
 | `unit` | `kg` or `lb` | The same unit as the RFQ. |
