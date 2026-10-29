@@ -17,21 +17,32 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
   const [creating, setCreating] = useState(false)
   // Kept here, not in the form, so closing and reopening the form still retries with the same idempotency key.
   const attempt = useRef<{ body: string; key: string } | null>(null)
+  // Events that arrive while a reload is in flight; replayed on top of its (possibly older) result.
+  const pending = useRef<InvoiceRow[] | null>(null)
   // Only the roaster sells and sends PayPal invoices in S1; the café pays them on PayPal's page.
   const sends = desk === 'roaster'
 
   const reload = useCallback(() => {
+    const buffered: InvoiceRow[] = []
+    pending.current = buffered
     listInvoices(desk)
       .then((found) => {
-        setRows(found)
+        if (pending.current !== buffered) return // a newer reload started; its result wins
+        setRows(buffered.reduce(upsert, found))
         setError(null)
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => {
+        if (pending.current === buffered) pending.current = null
+      })
   }, [desk])
 
   useEffect(() => {
     const onEvent = (event: DeskEvent) => {
-      if (event.type === 'invoice.updated') setRows((current) => upsert(current, event.data as InvoiceRow))
+      if (event.type !== 'invoice.updated') return
+      const row = event.data as InvoiceRow
+      pending.current?.push(row)
+      setRows((current) => upsert(current, row))
     }
     const onStatus = (open: boolean) => {
       setLive(open)
