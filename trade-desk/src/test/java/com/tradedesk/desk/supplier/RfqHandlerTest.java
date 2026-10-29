@@ -98,6 +98,27 @@ class RfqHandlerTest {
 	}
 
 	@Test
+	void aSlowLlmDoesNotHoldTheQuoteUp() {
+		llm.answering((system, user) -> {
+			try {
+				Thread.sleep(10_000);
+			}
+			catch (InterruptedException ex) {
+				Thread.currentThread().interrupt();
+			}
+			return "Too late.";
+		});
+		long start = System.nanoTime();
+
+		QuoteBody quote = json.body(handler(List.of(QuotePricerTest.SANTOS)).answer(rfq("50")).body(), QuoteBody.class)
+			.orElseThrow();
+
+		assertThat(java.time.Duration.ofNanos(System.nanoTime() - start))
+			.isLessThan(RfqHandler.NOTE_TIMEOUT.plusSeconds(1));
+		assertThat(quote.note()).isEqualTo("Santos natural, Cerrado Mineiro: 50 kg, delivered Wed Nov 4.");
+	}
+
+	@Test
 	void aMalformedRfqBodyIsRejected() {
 		AgentEnvelope bad = new AgentEnvelope(UUID.randomUUID(), AgentEnvelope.Type.RFQ, "cafe.test", "roaster.test",
 				UUID.randomUUID(), NOW.instant(), json.tree(java.util.Map.of("product", "beans", "budget", "999")));
