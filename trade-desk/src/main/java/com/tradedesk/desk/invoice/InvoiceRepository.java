@@ -98,6 +98,7 @@ public class InvoiceRepository {
 				   set paypal_invoice_id = :payPalId,
 				       invoice_number = coalesce(:number, invoice_number),
 				       status = :status,
+				       paid_at = case when :status = 'PAID' then coalesce(paid_at, now()) else paid_at end,
 				       due_date = coalesce(:dueDate, due_date),
 				       payer_view_url = coalesce(:payerViewUrl, payer_view_url),
 				       updated_at = now()
