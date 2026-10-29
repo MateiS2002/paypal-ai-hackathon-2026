@@ -7,6 +7,10 @@ type Props = { need: NeedRow; quotes: QuoteRow[] }
 
 const PRIORITY: Record<string, string> = { SPEED: 'speed', PRICE: 'price', BALANCED: 'balanced' }
 
+/** "2026-10-30" -> "Fri Oct 30", read as a calendar date (no time zone shift). */
+const shortDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+
 function SupplierCell({ data }: ICellRendererParams<QuoteRow>) {
   if (!data) return null
   return (
@@ -24,48 +28,61 @@ function SupplierCell({ data }: ICellRendererParams<QuoteRow>) {
 export default function OffersGrid({ need, quotes }: Props) {
   const deliverBy = need.request.deliverBy
 
+  const unit = need.request.unit ?? ''
+  const currency = quotes[0]?.unitPrice.currency ?? 'USD'
+
   const columns: ColDef<QuoteRow>[] = [
-    { field: 'rank', headerName: '#', maxWidth: 70, sort: 'asc' },
-    { colId: 'supplier', headerName: 'Supplier', flex: 1.6, cellRenderer: SupplierCell, valueGetter: (p) => p.data?.supplier.name },
+    { field: 'rank', headerName: '#', width: 60, flex: 0, sort: 'asc' },
+    {
+      colId: 'supplier',
+      headerName: 'Supplier',
+      minWidth: 260,
+      cellRenderer: SupplierCell,
+      valueGetter: (p) => p.data?.supplier.name,
+    },
     {
       colId: 'unitPrice',
-      headerName: 'Price / unit',
+      headerName: `${currency} / ${unit}`,
       type: 'rightAligned',
-      maxWidth: 140,
-      valueGetter: (p) => (p.data ? `${p.data.unitPrice.amount} / ${p.data.unit}` : ''),
-      comparator: (_a, _b, nodeA, nodeB) => Number(nodeA.data?.unitPrice.amount) - Number(nodeB.data?.unitPrice.amount),
+      width: 100,
+      flex: 0,
+      valueGetter: (p) => p.data?.unitPrice.amount,
+      comparator: (a, b) => Number(a) - Number(b),
     },
     {
       colId: 'quantity',
       headerName: 'Offered',
-      type: 'rightAligned',
-      maxWidth: 130,
-      valueGetter: (p) => (p.data ? `${trim(p.data.quantity)} ${p.data.unit}${p.data.partial ? ' (partial)' : ''}` : ''),
+      width: 140,
+      flex: 0,
+      valueGetter: (p) => (p.data ? `${trim(p.data.quantity)} ${p.data.unit}${p.data.partial ? ' · partial' : ''}` : ''),
       cellClassRules: { 'cell-warn': (p) => !!p.data?.partial },
     },
     {
       colId: 'total',
-      headerName: 'Total',
+      headerName: `Total ${currency}`,
       type: 'rightAligned',
-      maxWidth: 140,
-      valueGetter: (p) => (p.data ? `${p.data.total.amount} ${p.data.total.currency}` : ''),
-      comparator: (_a, _b, nodeA, nodeB) => Number(nodeA.data?.total.amount) - Number(nodeB.data?.total.amount),
+      width: 110,
+      flex: 0,
+      valueGetter: (p) => p.data?.total.amount,
+      comparator: (a, b) => Number(a) - Number(b),
     },
     {
       field: 'deliveryDate',
       headerName: 'Delivery',
-      maxWidth: 150,
-      valueFormatter: (p) => (p.value && deliverBy && p.value > deliverBy ? `${p.value} (late)` : (p.value ?? '')),
+      width: 140,
+      flex: 0,
+      valueFormatter: (p) => (p.value ? `${shortDate(p.value)}${deliverBy && p.value > deliverBy ? ' · late' : ''}` : ''),
       cellClassRules: { 'cell-warn': (p) => !!(p.value && deliverBy && p.value > deliverBy) },
     },
     {
       colId: 'stock',
       headerName: 'Stock',
       type: 'rightAligned',
-      maxWidth: 120,
+      width: 100,
+      flex: 0,
       valueGetter: (p) => (p.data ? `${trim(p.data.availableQuantity)} ${p.data.unit}` : ''),
     },
-    { field: 'note', headerName: 'Note', flex: 3, tooltipField: 'note', sortable: false },
+    { field: 'note', headerName: 'Note', minWidth: 260, tooltipField: 'note', sortable: false },
   ]
 
   const r = need.request
