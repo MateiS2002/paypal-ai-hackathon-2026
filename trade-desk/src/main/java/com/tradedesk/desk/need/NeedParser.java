@@ -2,13 +2,16 @@ package com.tradedesk.desk.need;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,7 +61,11 @@ public class NeedParser {
 
 	private static final Logger log = LoggerFactory.getLogger(NeedParser.class);
 
-	private static final Pattern NUMBER = Pattern.compile("\\d+(?:[.,]\\d+)?");
+	/** A number as written: "1,000" (thousands groups), "12.5", "12,5" or "50". */
+	private static final Pattern NUMBER = Pattern.compile("\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:[.,]\\d+)?");
+
+	/** Commas in groups of three are thousands separators ("1,000" is a thousand, never one). */
+	private static final Pattern THOUSANDS = Pattern.compile("\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?");
 
 	private static final Map<String, BigDecimal> NUMBER_WORDS = Map.ofEntries(Map.entry("one", BigDecimal.ONE),
 			Map.entry("two", BigDecimal.valueOf(2)), Map.entry("three", BigDecimal.valueOf(3)),
@@ -80,10 +87,25 @@ public class NeedParser {
 			+ "\\b(today|tonight|tomorrow|week|weekend|month|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|"
 			+ "jul|aug|sep|oct|nov|dec)", Pattern.CASE_INSENSITIVE);
 
-	/** How the owner may write each unit. A unit the text doesn't name is the LLM's guess and is dropped. */
-	private static final Map<Unit, Pattern> UNIT_WORDS = Map.of(
-			Unit.KG, Pattern.compile("(?<![a-z])(kg|kgs|kilos?|kilograms?)(?![a-z])", Pattern.CASE_INSENSITIVE),
-			Unit.LB, Pattern.compile("(?<![a-z])(lbs?|pounds?)(?![a-z])", Pattern.CASE_INSENSITIVE));
+	/**
+	 * A quantity with its unit right after it ("50 kg", "50kg", "fifty kilos", "100 lb"). The unit must be attached
+	 * to the quantity: one that only appears in a price ("$15/lb") or nowhere is the LLM's guess and is dropped.
+	 */
+	private static final Pattern QUANTITY_UNIT = Pattern.compile("(" + NUMBER.pattern()
+			+ "|\\b(?:one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|hundred|dozen))"
+			+ "\\s*-?\\s*(kg|kgs|kilos?|kilograms?|lbs?|pounds?)(?![a-z])", Pattern.CASE_INSENSITIVE);
+
+	/** A currency other than USD next to a budget's number: the budget is dropped, never converted. */
+	private static final Pattern OTHER_CURRENCY = Pattern.compile("€|£|¥|\\b(eur|euros?|gbp|cad|aud|chf|jpy|mxn|"
+			+ "pesos?|yen|pounds? sterling)\\b", Pattern.CASE_INSENSITIVE);
+
+	/** Day names, full or short ("Friday", "fri"). */
+	private static final Pattern WEEKDAY = Pattern.compile("\\b(monday|tuesday|wednesday|thursday|friday|saturday|"
+			+ "sunday|mon|tues?|wed|thu|thurs?|fri|sat|sun)\\b", Pattern.CASE_INSENSITIVE);
+
+	private static final Pattern ISO_DATE = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
+
+	private static final Pattern IN_DAYS = Pattern.compile("\\b(\\d+)\\s+days?\\b", Pattern.CASE_INSENSITIVE);
 
 	/**
 	 * Words that mark a number as a price or a limit ($15, 15 USD, 15/kg, max 15, under 15, at most 15). A budget
@@ -134,9 +156,10 @@ public class NeedParser {
 
 	/** Java's half: every field checked on its own, so one bad field becomes a question, not a failed parse. */
 	ParseResult check(Proposal proposal, String text, LocalDate today) {
+		BigDecimal quantity = quantity(proposal.quantity(), text);
 		PurchaseRequest request = new PurchaseRequest(PurchaseRequestRules.product(proposal.product()),
-				PurchaseRequestRules.origin(proposal.origin()), quantity(proposal.quantity(), text),
-				unit(proposal.unit(), text), deliverBy(proposal.deliverBy(), text, today), priority(proposal.priority()),
+				PurchaseRequestRules.origin(proposal.origin()), quantity, unit(proposal.unit(), quantity, text),
+				deliverBy(proposal.deliverBy(), text, today), priority(proposal.priority()),
 				maxUnitPrice(proposal.maxUnitPrice(), text));
 		List<String> missing = PurchaseRequestRules.missing(request);
 		return new ParseResult(missing.isEmpty(), request, missing, question(missing));
@@ -164,28 +187,88 @@ public class NeedParser {
 		return quantity != null && mentions(text, quantity) ? quantity : null;
 	}
 
-	/** Kept only if the text names the unit, so "50 beans" never becomes "50 kg". */
-	private static Unit unit(String value, String text) {
+	/**
+	 * Kept only if the text attaches this unit to the kept quantity ("50 kg"), so "50 beans" never becomes "50 kg"
+	 * and "50 kg, max $15/lb" never becomes 50 lb.
+	 */
+	private static Unit unit(String value, BigDecimal quantity, String text) {
+		Unit unit;
 		try {
-			Unit unit = value == null ? null : Unit.fromWire(value);
-			return unit != null && UNIT_WORDS.get(unit).matcher(text).find() ? unit : null;
+			unit = value == null ? null : Unit.fromWire(value);
 		}
 		catch (IllegalArgumentException ex) {
 			return null;
 		}
+		if (unit == null || quantity == null) {
+			return null;
+		}
+		Matcher attached = QUANTITY_UNIT.matcher(text);
+		while (attached.find()) {
+			String number = attached.group(1).toLowerCase(Locale.ROOT);
+			BigDecimal word = NUMBER_WORDS.get(number);
+			boolean sameQuantity = word != null ? word.compareTo(quantity) == 0 : reads(number, quantity);
+			Unit written = attached.group(2).toLowerCase(Locale.ROOT).startsWith("k") ? Unit.KG : Unit.LB;
+			if (sameQuantity && written == unit) {
+				return unit;
+			}
+		}
+		return null;
 	}
 
-	/** Kept only if the text names a date or deadline at all; relative days are resolved by the model from today. */
+	/**
+	 * Kept only if the text names a date or deadline, and the model's date agrees with what the text pins down;
+	 * relative days are resolved by the model from today.
+	 */
 	private static LocalDate deliverBy(String value, String text, LocalDate today) {
 		if (value == null || !DATE_CUE.matcher(text).find()) {
 			return null;
 		}
 		try {
-			return PurchaseRequestRules.deliverBy(LocalDate.parse(value.strip()), today);
+			LocalDate date = PurchaseRequestRules.deliverBy(LocalDate.parse(value.strip()), today);
+			return date != null && supportedBy(date, text, today) ? date : null;
 		}
 		catch (DateTimeParseException ex) {
 			return null;
 		}
+	}
+
+	/**
+	 * Whether the text supports this date: it must equal an explicit ISO date, "tomorrow" or "in N days" when the
+	 * text has one, or fall on a day the text names. Cues Java can't resolve on its own (next week, the 7th, 11/7)
+	 * only need to be present; the owner checks the date on the request card.
+	 */
+	static boolean supportedBy(LocalDate date, String text, LocalDate today) {
+		List<LocalDate> anchors = new ArrayList<>();
+		Matcher iso = ISO_DATE.matcher(text);
+		while (iso.find()) {
+			try {
+				anchors.add(LocalDate.parse(iso.group()));
+			}
+			catch (DateTimeParseException ex) {
+				// Not a real calendar date, so it anchors nothing.
+			}
+		}
+		if (text.toLowerCase(Locale.ROOT).contains("tomorrow")) {
+			anchors.add(today.plusDays(1));
+		}
+		Matcher inDays = IN_DAYS.matcher(text);
+		while (inDays.find()) {
+			anchors.add(today.plusDays(Long.parseLong(inDays.group(1))));
+		}
+		Set<DayOfWeek> days = EnumSet.noneOf(DayOfWeek.class);
+		Matcher weekday = WEEKDAY.matcher(text);
+		while (weekday.find()) {
+			String name = weekday.group(1).substring(0, 3).toUpperCase(Locale.ROOT);
+			for (DayOfWeek day : DayOfWeek.values()) {
+				if (day.name().startsWith(name)) {
+					days.add(day);
+				}
+			}
+		}
+		if (anchors.isEmpty() && days.isEmpty()) {
+			return true;
+		}
+		return anchors.contains(date) || days.contains(date.getDayOfWeek());
 	}
 
 	private static Priority priority(String value) {
@@ -249,7 +332,8 @@ public class NeedParser {
 			if (reads(digits.group(), number)) {
 				String around = text.substring(Math.max(0, digits.start() - PRICE_CUE_REACH),
 						Math.min(text.length(), digits.end() + PRICE_CUE_REACH));
-				if (PRICE_CUE.matcher(around).find()) {
+				// A price in another currency is refused, not relabelled as USD.
+				if (PRICE_CUE.matcher(around).find() && !OTHER_CURRENCY.matcher(around).find()) {
 					return true;
 				}
 			}
@@ -257,15 +341,14 @@ public class NeedParser {
 		return false;
 	}
 
-	/** "1,500" may be fifteen hundred or one and a half: either reading counts. */
+	/**
+	 * One reading per number, so an ambiguous one can't match two proposals: commas in groups of three are thousands
+	 * separators ("1,000" is a thousand), any other comma is a decimal point ("12,5" is twelve and a half).
+	 */
 	private static boolean reads(String digits, BigDecimal number) {
-		for (String reading : List.of(digits.replace(',', '.'), digits.replace(",", ""))) {
-			BigDecimal found = decimal(reading);
-			if (found != null && found.compareTo(number) == 0) {
-				return true;
-			}
-		}
-		return false;
+		String reading = THOUSANDS.matcher(digits).matches() ? digits.replace(",", "") : digits.replace(',', '.');
+		BigDecimal found = decimal(reading);
+		return found != null && found.compareTo(number) == 0;
 	}
 
 	/** The follow-up question, from Java's list of missing fields. */

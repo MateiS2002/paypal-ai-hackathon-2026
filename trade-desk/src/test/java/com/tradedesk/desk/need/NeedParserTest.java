@@ -112,6 +112,50 @@ class NeedParserTest {
 	}
 
 	@Test
+	void aUnitOnlyInThePriceIsNotTheQuantitysUnit() {
+		llm.answering(proposal("beans", null, "50", "lb", "2026-11-06", null, "15"));
+
+		ParseResult result = parser.parse("50 kg beans by Friday, max $15/lb");
+
+		assertThat(result.request().unit()).isNull();
+		assertThat(result.missing()).containsExactly("unit");
+	}
+
+	@Test
+	void aBudgetInAnotherCurrencyIsDroppedNotRelabelled() {
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-06", null, "15"));
+
+		assertThat(parser.parse("50 kg beans by Friday, max 15 EUR per kg").request().maxUnitPrice()).isNull();
+		assertThat(parser.parse("50 kg beans by Friday, max €15/kg").request().maxUnitPrice()).isNull();
+		assertThat(parser.parse("50 kg beans by Friday, max $15/kg").request().maxUnitPrice()).isNotNull();
+	}
+
+	@Test
+	void aThousandsSeparatorHasOneReading() {
+		llm.answering(proposal("beans", null, "1", "kg", "2026-11-06", null, null));
+		assertThat(parser.parse("1,000 kg beans by Friday").request().quantity()).isNull();
+
+		llm.answering(proposal("beans", null, "1000", "kg", "2026-11-06", null, null));
+		assertThat(parser.parse("1,000 kg beans by Friday").request().quantity()).isEqualByComparingTo("1000");
+	}
+
+	@Test
+	void theModelsDateMustAgreeWithTheTextsDate() {
+		// Text says Nov 7 (ISO), model says Nov 10.
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-10", null, null));
+		assertThat(parser.parse("50 kg beans by 2026-11-07").missing()).containsExactly("deliverBy");
+
+		// Text says Friday; Nov 10 is a Tuesday.
+		assertThat(parser.parse("50 kg beans by Friday").missing()).containsExactly("deliverBy");
+
+		// "in 3 days" from Monday Nov 2 is Nov 5, not Nov 10.
+		assertThat(parser.parse("50 kg beans in 3 days").missing()).containsExactly("deliverBy");
+
+		// Cues Java can't resolve on its own still pass; the owner checks them on the card.
+		assertThat(parser.parse("50 kg beans next week").request().deliverBy()).isEqualTo(LocalDate.of(2026, 11, 10));
+	}
+
+	@Test
 	void hourDeadlinesAreDateCues() {
 		llm.answering(proposal("beans", null, "50", "kg", "2026-11-04", null, null));
 

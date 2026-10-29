@@ -109,6 +109,28 @@ class QuotePricerTest {
 	}
 
 	@Test
+	void aQualifierTheItemDoesntHaveIsRefused() {
+		assertThat(QuotePricer.price(rfq("decaffeinated green coffee beans", "Brazil", "10", Unit.KG), List.of(SANTOS),
+				TODAY))
+			.isInstanceOf(QuotePricer.Refusal.class);
+		CatalogueItem decaf = new CatalogueItem("D", "Swiss water decaffeinated Santos", "green coffee beans", "Brazil",
+				Unit.KG, "USD", new BigDecimal("14.00"), new BigDecimal("12.00"), new BigDecimal("100"), 3);
+		assertThat(QuotePricer.price(rfq("decaffeinated green coffee beans", "Brazil", "10", Unit.KG),
+				List.of(SANTOS, decaf), TODAY))
+			.isInstanceOfSatisfying(QuotePricer.Offer.class, offer -> assertThat(offer.item().sku()).isEqualTo("D"));
+	}
+
+	@Test
+	void genericAndOriginWordsStillMatch() {
+		for (String product : List.of("green coffee beans", "beans", "coffee", "Brazilian coffee beans",
+				"Santos natural")) {
+			assertThat(QuotePricer.sameProduct(product, SANTOS)).as(product).isTrue();
+		}
+		assertThat(QuotePricer.sameProduct("Colombian coffee beans", SANTOS)).isFalse();
+		assertThat(QuotePricer.sameProduct("green", SANTOS)).isFalse();
+	}
+
+	@Test
 	void refusesMalformedRfqs() {
 		assertThat(QuotePricer.price(rfq("beans", null, "-1", Unit.KG), List.of(SANTOS), TODAY))
 			.isInstanceOf(QuotePricer.Refusal.class);

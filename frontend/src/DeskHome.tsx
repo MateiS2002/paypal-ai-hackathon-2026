@@ -160,7 +160,10 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
           <NeedBox
             desk={desk}
             onPosted={(posted) => {
-              setNeeds((current) => upsert(current, posted))
+              // The fan-out can finish (need.updated: COMPLETE) before this response arrives; keep the newer state.
+              setNeeds((current) =>
+                current.some((n) => n.id === posted.id && n.status === 'COMPLETE') ? current : upsert(current, posted),
+              )
               setSelected(posted.id)
             }}
           />

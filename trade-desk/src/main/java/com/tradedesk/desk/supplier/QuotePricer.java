@@ -116,10 +116,16 @@ public final class QuotePricer {
 		return Optional.empty();
 	}
 
+	/**
+	 * Every word that says what the buyer wants must be in the item's product or description, so a qualifier such as
+	 * "decaffeinated" is never dropped on the way to an ordinary lot. A word naming the item's origin ("Brazilian")
+	 * counts as present. Filler words ("green", "fresh") don't count either way.
+	 */
 	static boolean sameProduct(String wanted, CatalogueItem item) {
-		Set<String> words = words(wanted);
-		words.retainAll(words(item.product() + " " + item.description()));
-		return !words.isEmpty();
+		Set<String> required = words(wanted);
+		Set<String> offered = words(item.product() + " " + item.description());
+		required.removeIf(word -> offered.contains(word) || item.origin() != null && sameOrigin(word, item.origin()));
+		return required.isEmpty() && !words(wanted).isEmpty();
 	}
 
 	/** No origin on either side matches anything; otherwise "Brazilian" matches "Brazil". */
