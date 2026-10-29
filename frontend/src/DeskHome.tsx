@@ -1,26 +1,43 @@
-import { useEffect, useState } from 'react'
-import { AgGridReact } from 'ag-grid-react'
-import type { ColDef } from 'ag-grid-community'
-import { logout, subscribe, type DeskId, type Me } from './api'
+import { useCallback, useEffect, useState } from 'react'
+import { listInvoices, logout, subscribe, type DeskEvent, type DeskId, type InvoiceRow, type Me } from './api'
+import Ledger from './Ledger'
+import NewInvoiceForm from './NewInvoiceForm'
 
 type Props = { desk: DeskId; user: Me; onLogout: () => void }
 
-type LedgerRow = { invoice: string; counterparty: string; amount: string; status: string; updated: string }
-
-// The ledger fills up in S1 (invoice to paid); S0 only proves AG Grid and the live stream are wired.
-const columns: ColDef<LedgerRow>[] = [
-  { field: 'invoice', headerName: 'Invoice' },
-  { field: 'counterparty', headerName: 'Counterparty' },
-  { field: 'amount', headerName: 'Amount', type: 'rightAligned' },
-  { field: 'status', headerName: 'Status' },
-  { field: 'updated', headerName: 'Updated' },
-]
+/** Replaces the row with the same id, or adds it at the top (the ledger is newest first). */
+function upsert(rows: InvoiceRow[], row: InvoiceRow): InvoiceRow[] {
+  return rows.some((r) => r.id === row.id) ? rows.map((r) => (r.id === row.id ? row : r)) : [row, ...rows]
+}
 
 export default function DeskHome({ desk, user, onLogout }: Props) {
   const [live, setLive] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rows, setRows] = useState<InvoiceRow[]>([])
+  const [creating, setCreating] = useState(false)
+  // Only the roaster sells and sends PayPal invoices in S1; the café pays them on PayPal's page.
+  const sends = desk === 'roaster'
 
-  useEffect(() => subscribe(desk, () => setLive(true), setLive), [desk])
+  const reload = useCallback(() => {
+    listInvoices(desk)
+      .then((found) => {
+        setRows(found)
+        setError(null)
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [desk])
+
+  useEffect(() => {
+    const onEvent = (event: DeskEvent) => {
+      if (event.type === 'invoice.updated') setRows((current) => upsert(current, event.data as InvoiceRow))
+    }
+    const onStatus = (open: boolean) => {
+      setLive(open)
+      // Catch up on anything that changed while the stream was down.
+      if (open) reload()
+    }
+    return subscribe(desk, onEvent, onStatus)
+  }, [desk, reload])
 
   const signOut = async () => {
     // Only leave the dashboard once the server has really ended the session.
@@ -52,15 +69,21 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      <h2>Ledger</h2>
-      <div className="grid">
-        <AgGridReact<LedgerRow>
-          rowData={[]}
-          columnDefs={columns}
-          defaultColDef={{ flex: 1, sortable: true, filter: true }}
-          overlayNoRowsTemplate="No invoices yet."
-        />
+      <div className="section-head">
+        <h2>Ledger</h2>
+        {sends && !creating && <button onClick={() => setCreating(true)}>New invoice</button>}
       </div>
+      {creating && (
+        <NewInvoiceForm
+          desk={desk}
+          onCreated={(row) => {
+            setRows((current) => upsert(current, row))
+            setCreating(false)
+          }}
+          onClose={() => setCreating(false)}
+        />
+      )}
+      <Ledger rows={rows} />
     </section>
   )
 }

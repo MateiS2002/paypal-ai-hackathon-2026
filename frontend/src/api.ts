@@ -59,6 +59,85 @@ export async function logout(desk: DeskId): Promise<void> {
   if (!res.ok) throw new Error(`Logout failed (${res.status})`)
 }
 
+// Invoices (S1). Shapes match contracts/desk-api.md; money stays a decimal string, never a JS number.
+
+export type Money = { amount: string; currency: string }
+
+export type Customer = { name: string; email: string }
+
+export type InvoiceStatus =
+  | 'DRAFT'
+  | 'SENT'
+  | 'PAID'
+  | 'PARTIALLY_PAID'
+  | 'UNPAID'
+  | 'PAYMENT_PENDING'
+  | 'CANCELLED'
+  | 'REFUNDED'
+  | 'AWAITING_APPROVAL'
+  | 'OTHER'
+
+export type InvoiceRow = {
+  id: string
+  invoiceNumber: string | null
+  customer: Customer
+  lines: { description: string; quantity: string; unitPrice: Money; lineTotal: Money }[]
+  total: Money
+  status: InvoiceStatus
+  source: 'MANUAL' | 'NEGOTIATION' | 'MESSY_ORDER'
+  dueDate: string | null
+  payerViewUrl: string | null
+  createdAt: string
+  updatedAt: string
+  paidAt: string | null
+}
+
+export type NewInvoice = {
+  customer: Customer
+  lines: { description: string; quantity: string; unitPrice: Money }[]
+}
+
+/** The desk's readable message from a problem body (contracts/desk-api.md, Errors), or a generic one. */
+async function problem(res: Response, fallback: string): Promise<Error> {
+  try {
+    const body = (await res.json()) as { detail?: string }
+    if (body.detail) return new Error(body.detail)
+  } catch {
+    // Not JSON (for example nginx's own error page).
+  }
+  return new Error(`${fallback} (${res.status})`)
+}
+
+async function getJson<T>(desk: DeskId, path: string): Promise<T> {
+  const res = await fetch(`${base(desk)}${path}`, { credentials: 'same-origin' })
+  if (!res.ok) throw await problem(res, `The ${desk} desk answered`)
+  return res.json()
+}
+
+export const listInvoices = (desk: DeskId) => getJson<InvoiceRow[]>(desk, '/invoices')
+
+export const listCustomers = (desk: DeskId) => getJson<Customer[]>(desk, '/customers')
+
+/**
+ * Creates and sends an invoice. Reuse the same idempotencyKey when retrying the same invoice: the desk then
+ * resumes it instead of creating a second PayPal invoice.
+ */
+export async function createInvoice(desk: DeskId, idempotencyKey: string, invoice: NewInvoice): Promise<InvoiceRow> {
+  const token = await csrf(desk)
+  const res = await fetch(`${base(desk)}/invoices`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      [token.headerName]: token.token,
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: JSON.stringify(invoice),
+  })
+  if (!res.ok) throw await problem(res, 'Creating the invoice failed')
+  return res.json()
+}
+
 /** Opens the desk's SSE stream. Call the returned function to close it. */
 export function subscribe(desk: DeskId, onEvent: (event: DeskEvent) => void, onStatus: (open: boolean) => void) {
   const source = new EventSource(`${base(desk)}/events`)
