@@ -93,6 +93,30 @@ class NeedParserTest {
 	}
 
 	@Test
+	void aQuantityIsNotADateCue() {
+		// The text has a number (the quantity) but names no date; the model's date is a guess.
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-09", null, null));
+
+		ParseResult result = parser.parse("50 kg beans");
+
+		assertThat(result.request().deliverBy()).isNull();
+		assertThat(result.missing()).containsExactly("deliverBy");
+		// A decimal isn't a date shape either.
+		assertThat(parser.parse("12.5 kg beans").missing()).contains("deliverBy");
+	}
+
+	@Test
+	void dateShapesAndRelativeCountsAreDateCues() {
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-05", null, null));
+
+		assertThat(parser.parse("50 kg beans in 3 days").request().deliverBy()).isEqualTo(LocalDate.of(2026, 11, 5));
+		assertThat(parser.parse("50 kg beans by 11/5").request().deliverBy()).isEqualTo(LocalDate.of(2026, 11, 5));
+		assertThat(parser.parse("50 kg beans by 2026-11-05").request().deliverBy()).isNotNull();
+		assertThat(parser.parse("50 kg beans by the 5th").request().deliverBy()).isNotNull();
+		assertThat(parser.parse("50 kg beans by 5.11.2026").request().deliverBy()).isNotNull();
+	}
+
+	@Test
 	void datesInThePastOrUnparseableAreMissing() {
 		llm.answering(proposal("beans", null, "50", "kg", "2026-11-01", null, null));
 		assertThat(parser.parse("50 kg beans by yesterday 1st").missing()).containsExactly("deliverBy");

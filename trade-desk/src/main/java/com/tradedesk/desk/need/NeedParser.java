@@ -70,9 +70,15 @@ public class NeedParser {
 			Map.entry("fifty", BigDecimal.valueOf(50)), Map.entry("hundred", BigDecimal.valueOf(100)),
 			Map.entry("dozen", BigDecimal.valueOf(12)));
 
-	/** Words that name a date or deadline. Without one (or a number), the LLM's date is a guess and is dropped. */
-	private static final Pattern DATE_CUE = Pattern.compile("\\d|\\b(today|tonight|tomorrow|week|weekend|month|"
-			+ "mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)", Pattern.CASE_INSENSITIVE);
+	/**
+	 * Something in the text that names a date or deadline: a date shape (11/7, 2026-11-07, 7.11.2026, 7th), a
+	 * relative count (in 3 days) or a day, week or month word. Without one, the LLM's date is a guess and is dropped.
+	 * A bare number such as the quantity in "50 kg beans" is not a date cue.
+	 */
+	private static final Pattern DATE_CUE = Pattern.compile("\\d{1,4}[/-]\\d{1,2}|\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}|"
+			+ "\\d{1,2}(st|nd|rd|th)\\b|\\b\\d+\\s+days?\\b|"
+			+ "\\b(today|tonight|tomorrow|week|weekend|month|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|"
+			+ "jul|aug|sep|oct|nov|dec)", Pattern.CASE_INSENSITIVE);
 
 	private final Llm llm;
 
