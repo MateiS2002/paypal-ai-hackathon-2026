@@ -71,7 +71,7 @@ class NeedParserTest {
 		assertThat(result.complete()).isFalse();
 		assertThat(result.request().quantity()).isNull();
 		assertThat(result.request().deliverBy()).isNull();
-		assertThat(result.missing()).containsExactly("quantity", "deliverBy");
+		assertThat(result.missing()).containsExactly("quantity", "unit", "deliverBy");
 		assertThat(result.question()).isEqualTo("How much (in kg or lb) and by when?");
 		assertThat(result.request().priority()).isEqualTo(Priority.BALANCED);
 	}
@@ -83,6 +83,41 @@ class NeedParserTest {
 		assertThat(parser.parse("50 kg beans by Friday, cheapest, max $15/kg").request().maxUnitPrice().amount())
 			.isEqualByComparingTo("15.00");
 		assertThat(parser.parse("50 kg beans by Friday, cheapest").request().maxUnitPrice()).isNull();
+	}
+
+	@Test
+	void aUnitIsKeptOnlyWhenTheTextNamesIt() {
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-06", null, null));
+
+		assertThat(parser.parse("50 beans by Friday").missing()).containsExactly("unit");
+		assertThat(parser.parse("50kg beans by Friday").request().unit()).isEqualTo(Unit.KG);
+		assertThat(parser.parse("50 kilos of beans by Friday").request().unit()).isEqualTo(Unit.KG);
+
+		llm.answering(proposal("beans", null, "100", "lb", "2026-11-06", null, null));
+		assertThat(parser.parse("100 pounds of beans by Friday").request().unit()).isEqualTo(Unit.LB);
+		// The model says lb, the owner wrote kg: the unit is a question, not the model's pick.
+		assertThat(parser.parse("100 kg of beans by Friday").missing()).containsExactly("unit");
+	}
+
+	@Test
+	void theQuantityCannotBecomeABudget() {
+		// The model reuses the quantity 50 as a budget; only the 15 next to "$" is a price.
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-06", null, "50"));
+		assertThat(parser.parse("50 kg beans by Friday").request().maxUnitPrice()).isNull();
+		assertThat(parser.parse("50 kg beans by Friday, max $15/kg").request().maxUnitPrice()).isNull();
+
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-06", null, "15"));
+		assertThat(parser.parse("50 kg beans by Friday, under 15 USD per kg").request().maxUnitPrice().amount())
+			.isEqualByComparingTo("15.00");
+	}
+
+	@Test
+	void hourDeadlinesAreDateCues() {
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-04", null, null));
+
+		assertThat(parser.parse("50 kg beans within 48 hours").request().deliverBy())
+			.isEqualTo(LocalDate.of(2026, 11, 4));
+		assertThat(parser.parse("50 kg beans in 48hrs").request().deliverBy()).isNotNull();
 	}
 
 	@Test

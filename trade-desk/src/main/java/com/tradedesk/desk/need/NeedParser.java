@@ -72,13 +72,29 @@ public class NeedParser {
 
 	/**
 	 * Something in the text that names a date or deadline: a date shape (11/7, 2026-11-07, 7.11.2026, 7th), a
-	 * relative count (in 3 days) or a day, week or month word. Without one, the LLM's date is a guess and is dropped.
-	 * A bare number such as the quantity in "50 kg beans" is not a date cue.
+	 * relative count (in 3 days, within 48 hours) or a day, week or month word. Without one, the LLM's date is a guess
+	 * and is dropped. A bare number such as the quantity in "50 kg beans" is not a date cue.
 	 */
 	private static final Pattern DATE_CUE = Pattern.compile("\\d{1,4}[/-]\\d{1,2}|\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}|"
-			+ "\\d{1,2}(st|nd|rd|th)\\b|\\b\\d+\\s+days?\\b|"
+			+ "\\d{1,2}(st|nd|rd|th)\\b|\\b\\d+\\s+days?\\b|\\b\\d+\\s*(hours?|hrs?)\\b|"
 			+ "\\b(today|tonight|tomorrow|week|weekend|month|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|"
 			+ "jul|aug|sep|oct|nov|dec)", Pattern.CASE_INSENSITIVE);
+
+	/** How the owner may write each unit. A unit the text doesn't name is the LLM's guess and is dropped. */
+	private static final Map<Unit, Pattern> UNIT_WORDS = Map.of(
+			Unit.KG, Pattern.compile("(?<![a-z])(kg|kgs|kilos?|kilograms?)(?![a-z])", Pattern.CASE_INSENSITIVE),
+			Unit.LB, Pattern.compile("(?<![a-z])(lbs?|pounds?)(?![a-z])", Pattern.CASE_INSENSITIVE));
+
+	/**
+	 * Words that mark a number as a price or a limit ($15, 15 USD, 15/kg, max 15, under 15, at most 15). A budget
+	 * needs one next to its number, so the quantity in "50 kg beans" can't become a $50 budget.
+	 */
+	private static final Pattern PRICE_CUE = Pattern.compile("\\$|\\busd\\b|\\bdollars?\\b|\\bper\\b|/\\s*(kg|lb)|"
+			+ "\\bbudget\\b|\\bmax(imum)?\\b|\\bunder\\b|\\bbelow\\b|\\bup to\\b|\\bat most\\b|\\bno more than\\b|"
+			+ "\\blimit\\b|\\bcap\\b", Pattern.CASE_INSENSITIVE);
+
+	/** How far around a budget's number (in characters) its price cue may be. */
+	private static final int PRICE_CUE_REACH = 14;
 
 	private final Llm llm;
 
@@ -120,7 +136,7 @@ public class NeedParser {
 	ParseResult check(Proposal proposal, String text, LocalDate today) {
 		PurchaseRequest request = new PurchaseRequest(PurchaseRequestRules.product(proposal.product()),
 				PurchaseRequestRules.origin(proposal.origin()), quantity(proposal.quantity(), text),
-				unit(proposal.unit()), deliverBy(proposal.deliverBy(), text, today), priority(proposal.priority()),
+				unit(proposal.unit(), text), deliverBy(proposal.deliverBy(), text, today), priority(proposal.priority()),
 				maxUnitPrice(proposal.maxUnitPrice(), text));
 		List<String> missing = PurchaseRequestRules.missing(request);
 		return new ParseResult(missing.isEmpty(), request, missing, question(missing));
@@ -148,9 +164,11 @@ public class NeedParser {
 		return quantity != null && mentions(text, quantity) ? quantity : null;
 	}
 
-	private static Unit unit(String value) {
+	/** Kept only if the text names the unit, so "50 beans" never becomes "50 kg". */
+	private static Unit unit(String value, String text) {
 		try {
-			return value == null ? null : Unit.fromWire(value);
+			Unit unit = value == null ? null : Unit.fromWire(value);
+			return unit != null && UNIT_WORDS.get(unit).matcher(text).find() ? unit : null;
 		}
 		catch (IllegalArgumentException ex) {
 			return null;
@@ -181,9 +199,10 @@ public class NeedParser {
 		return Priority.BALANCED;
 	}
 
+	/** Kept only if the text states the amount as a price, with a price cue next to it. */
 	private static Money maxUnitPrice(String value, String text) {
 		BigDecimal amount = decimal(value);
-		if (amount == null || !mentions(text, amount)) {
+		if (amount == null || !mentionsAsPrice(text, amount)) {
 			return null;
 		}
 		try {
@@ -210,16 +229,38 @@ public class NeedParser {
 	static boolean mentions(String text, BigDecimal number) {
 		Matcher digits = NUMBER.matcher(text);
 		while (digits.find()) {
-			// "1,500" may be fifteen hundred or one and a half: accept either reading.
-			for (String reading : List.of(digits.group().replace(',', '.'), digits.group().replace(",", ""))) {
-				BigDecimal found = decimal(reading);
-				if (found != null && found.compareTo(number) == 0) {
-					return true;
-				}
+			if (reads(digits.group(), number)) {
+				return true;
 			}
 		}
 		for (String word : text.toLowerCase(Locale.ROOT).split("[^a-z]+")) {
 			BigDecimal found = NUMBER_WORDS.get(word);
+			if (found != null && found.compareTo(number) == 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** True if the text states this number in digits with a {@link #PRICE_CUE} within reach of it. */
+	static boolean mentionsAsPrice(String text, BigDecimal number) {
+		Matcher digits = NUMBER.matcher(text);
+		while (digits.find()) {
+			if (reads(digits.group(), number)) {
+				String around = text.substring(Math.max(0, digits.start() - PRICE_CUE_REACH),
+						Math.min(text.length(), digits.end() + PRICE_CUE_REACH));
+				if (PRICE_CUE.matcher(around).find()) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** "1,500" may be fifteen hundred or one and a half: either reading counts. */
+	private static boolean reads(String digits, BigDecimal number) {
+		for (String reading : List.of(digits.replace(',', '.'), digits.replace(",", ""))) {
+			BigDecimal found = decimal(reading);
 			if (found != null && found.compareTo(number) == 0) {
 				return true;
 			}
