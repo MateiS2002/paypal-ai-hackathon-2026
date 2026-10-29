@@ -15,6 +15,9 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<InvoiceRow[]>([])
   const [creating, setCreating] = useState(false)
+  // Which opening of the form is on screen, so a late response from a closed one can't close a newer one.
+  const [formId, setFormId] = useState(0)
+  const openForm = useRef(0)
   // Kept here, not in the form, so closing and reopening the form still retries with the same idempotency key.
   const attempt = useRef<{ body: string; key: string } | null>(null)
   // Events that arrive while a reload is in flight; replayed on top of its (possibly older) result.
@@ -84,7 +87,17 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
       {error && <p className="error">{error}</p>}
       <div className="section-head">
         <h2>Ledger</h2>
-        {sends && !creating && <button onClick={() => setCreating(true)}>New invoice</button>}
+        {sends && !creating && (
+          <button
+            onClick={() => {
+              openForm.current = formId + 1
+              setFormId(formId + 1)
+              setCreating(true)
+            }}
+          >
+            New invoice
+          </button>
+        )}
       </div>
       {creating && (
         <NewInvoiceForm
@@ -93,12 +106,20 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
             if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() }
             return attempt.current.key
           }}
-          onCreated={(row) => {
-            attempt.current = null
+          onCreated={(row, key) => {
+            // Keep the new row even if a reload that started before it finishes later.
+            pending.current?.push(row)
             setRows((current) => upsert(current, row))
+            if (attempt.current?.key === key) attempt.current = null
+            // A late response from a form that was closed must not close the one open now.
+            if (openForm.current !== formId) return
+            openForm.current = 0
             setCreating(false)
           }}
-          onClose={() => setCreating(false)}
+          onClose={() => {
+            openForm.current = 0
+            setCreating(false)
+          }}
         />
       )}
       <Ledger rows={rows} />

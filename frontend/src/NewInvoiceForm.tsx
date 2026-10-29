@@ -8,7 +8,8 @@ type Props = {
    * reopened: a retry of the same body reuses it and the desk resumes instead of duplicating.
    */
   keyFor: (body: string) => string
-  onCreated: (row: InvoiceRow) => void
+  /** Called with the key the request used, so the parent can tell which attempt it answers. */
+  onCreated: (row: InvoiceRow, key: string) => void
   onClose: () => void
 }
 
@@ -63,7 +64,7 @@ export default function NewInvoiceForm({ desk, keyFor, onCreated, onClose }: Pro
     setError(null)
     try {
       const row = await createInvoice(desk, key, invoice)
-      onCreated(row)
+      onCreated(row, key)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
