@@ -14,7 +14,7 @@ The receiver treats every envelope as untrusted input: it parses the body into a
 | Retries | A repeated `messageId` gets the reply that was stored for it the first time, so a retry never produces a second quote. |
 | Storage | Both desks store their own copy of every envelope they send and receive (`conversation_message`). |
 | Addresses | Until S4, the café finds suppliers in its static `DESK_PEERS` list ([README](README.md#environment-variables)). |
-| Auth | None until S5, which adds a registry token with scope `rfq:send` for `rfq`. The endpoint is only reachable inside the compose network. |
+| Auth | None until S5, which adds a registry token with scope `rfq:send` for `rfq`. Until then the endpoint is unauthenticated and reachable from the compose network and from any local process through the desk's `127.0.0.1` port (8081 to 8085). Desks refuse browser requests (any `Origin` or `Sec-Fetch-Site` header gets `403`), so a web page can't post to it, but local programs can. |
 
 ## `rfq` (buyer to supplier, S2)
 
