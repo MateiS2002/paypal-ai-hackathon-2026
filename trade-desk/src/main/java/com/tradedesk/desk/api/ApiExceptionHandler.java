@@ -2,6 +2,9 @@ package com.tradedesk.desk.api;
 
 import com.tradedesk.desk.invoice.IdempotencyConflictException;
 import com.tradedesk.desk.invoice.InvalidInvoiceException;
+import com.tradedesk.desk.llm.LlmException;
+import com.tradedesk.desk.llm.LlmNotConfiguredException;
+import com.tradedesk.desk.need.InvalidNeedException;
 import com.tradedesk.desk.paypal.PayPalException;
 import com.tradedesk.desk.paypal.PayPalNotConfiguredException;
 
@@ -23,6 +26,21 @@ public class ApiExceptionHandler {
 	@ExceptionHandler
 	ProblemDetail invalidInvoice(InvalidInvoiceException ex) {
 		return problem(HttpStatus.BAD_REQUEST, "Invalid invoice", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail invalidNeed(InvalidNeedException ex) {
+		return problem(HttpStatus.BAD_REQUEST, "Invalid need", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail llm(LlmException ex) {
+		return problem(HttpStatus.BAD_GATEWAY, "AI model error", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail llmNotConfigured(LlmNotConfiguredException ex) {
+		return problem(HttpStatus.SERVICE_UNAVAILABLE, "AI model not configured", ex.getMessage());
 	}
 
 	@ExceptionHandler

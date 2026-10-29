@@ -8,6 +8,21 @@ spring:
     password: ${POSTGRES_PASSWORD}
   flyway:
     locations: classpath:db/migration
+  # OpenAI through Spring AI, chat only. The key never reaches a prompt or a tool; OpenAiLlm reports "not configured"
+  # (503) instead of failing at startup when it's missing, so the desk still runs without it.
+  ai:
+    model:
+      chat: openai
+      embedding: none
+      image: none
+      audio:
+        speech: none
+        transcription: none
+      moderation: none
+    openai:
+      api-key: ${OPENAI_API_KEY:not-configured}
+      chat:
+        model: ${OPENAI_MODEL:gpt-6-luna}
 
 server:
   port: 8080
