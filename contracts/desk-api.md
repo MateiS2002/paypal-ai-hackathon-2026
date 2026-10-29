@@ -43,7 +43,7 @@ One SSE stream per desk. Each event's `data` is JSON shaped by [sse-event.schema
 | `desk.connected` | S0 | `{"deskId": "roaster"}`, sent once when the stream opens. |
 | `invoice.updated` | S1 | An [invoice row](#invoice-row), sent when an invoice is created or its PayPal status changes. The UI replaces the row with the same `id`. Example: [sse-invoice-updated.json](examples/sse-invoice-updated.json). |
 | `need.updated` | S2 | A [need row](#need-row), sent when a need is posted and when every supplier has answered or timed out. |
-| `quote.received` | S2 | `{"needId", "quotes": [...]}`: the need's whole ranked list of [quote rows](#quote-row), sent each time a valid quote arrives. A new quote can change the rank of earlier ones, so the UI replaces the list. Example: [sse-quote-received.json](examples/sse-quote-received.json). |
+| `quote.received` | S2 | `{"needId", "quotes": [...]}`: the need's whole ranked list of [quote rows](#quote-row), sent each time a valid quote arrives. A new quote can change the rank of earlier ones, so the UI replaces the list. A need's list only ever grows (a supplier quotes at most once per need), so when a `GET /api/needs/{id}/quotes` response and an event race, the UI keeps whichever list has more quotes; an older snapshot can never remove a newer quote. Example: [sse-quote-received.json](examples/sse-quote-received.json). |
 
 ## Errors
 
@@ -130,18 +130,18 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
 
 ### Parse result
 
-`POST /api/needs/parse` with `{"text": "50 kg Brazilian beans by Friday, prioritise speed"}` (1 to 1000 characters) answers `200` with:
+`POST /api/needs/parse` with `{"text": "some beans"}` (1 to 1000 characters) answers `200` with:
 
 ```json
 {
   "complete": false,
   "request": { "product": "green coffee beans", "origin": null, "quantity": null, "unit": null, "deliverBy": null, "priority": "BALANCED", "maxUnitPrice": null },
-  "missing": ["quantity", "deliverBy"],
-  "question": "How much do you need (in kg or lb), and by when?"
+  "missing": ["quantity", "unit", "deliverBy"],
+  "question": "How much (in kg or lb) and by when?"
 }
 ```
 
-- `request` has the same fields as a purchase request, but any of them may be `null`.
+- `request` has the same fields as a purchase request, but any of them may be `null`. For the demo text `50 kg Brazilian beans by Friday, prioritise speed` it is complete: Brazil, `50` `kg`, the coming Friday's date (relative days are resolved from today in the desk's time zone), `SPEED`.
 - `missing` lists the fields the owner must still fill in. The desk never guesses a quantity or a date that isn't in the text. A missing `priority` defaults to `BALANCED` and is not listed.
 - `question` is written by the desk's code from `missing`, not by the LLM. It is `null` when `complete` is `true`.
 - `complete` is `true` only when `request` passes every rule above, so the UI can post it unchanged.
@@ -205,6 +205,7 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
 - `rank` starts at 1. Full offers always rank above partial ones; within each group:
   - `PRICE`: lowest unit price first, then earliest delivery.
   - `SPEED`: earliest delivery first, then lowest unit price.
-  - `BALANCED`: lowest score first, where score = half the unit price's position between the cheapest and dearest quote (0 to 1) plus half the delivery date's position between the earliest and latest (0 to 1); ties by unit price.
+  - `BALANCED`: lowest score first, where score = half the unit price's position between the cheapest and dearest quote (0 to 1) plus half the delivery date's position between the earliest and latest (0 to 1); ties by unit price. A position is 0 when every quote has the same value (so a single quote, or quotes that share a price or a date, still get a score).
+  - Any remaining tie is broken by `supplier.domain`, so the order never depends on arrival time.
 - `supplier.name` and `supplier.simulated` are what the supplier claimed in its quote (verified from S4).
 - `note` is display text written by the supplier's LLM; the café never reads numbers from it.
