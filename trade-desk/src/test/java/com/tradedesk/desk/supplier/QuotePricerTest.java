@@ -157,6 +157,10 @@ class QuotePricerTest {
 	void originMatchesAdjectivesAndAny() {
 		assertThat(QuotePricer.sameOrigin("Brazilian", "Brazil")).isTrue();
 		assertThat(QuotePricer.sameOrigin(null, "Brazil")).isTrue();
+		assertThat(QuotePricer.sameOrigin(null, null)).isTrue();
+		// An origin the item never states can't be promised.
+		assertThat(QuotePricer.sameOrigin("Brazil", null)).isFalse();
+		assertThat(QuotePricer.sameOrigin("Brazil", " ")).isFalse();
 		assertThat(QuotePricer.sameOrigin("Colombia", "Brazil")).isFalse();
 	}
 

@@ -88,8 +88,9 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
     listNeeds(desk)
       .then((found) => {
         setNeeds((current) => mergeNeeds(current, found))
-        // Keep the owner's pick if it still exists, else show the newest need.
-        setSelected((current) => (current && found.some((n) => n.id === current) ? current : (found[0]?.id ?? null)))
+        // Needs are never deleted, so the owner's pick stays valid even when this snapshot is older than it (a need
+        // posted while the reload was in flight). Without a pick, show the newest need.
+        setSelected((current) => current ?? found[0]?.id ?? null)
         found.slice(0, 5).forEach((need) => loadQuotes(need.id))
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))

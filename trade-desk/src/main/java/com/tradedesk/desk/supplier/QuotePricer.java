@@ -132,10 +132,17 @@ public final class QuotePricer {
 		return required.isEmpty() && !words(wanted).isEmpty();
 	}
 
-	/** No origin on either side matches anything; otherwise "Brazilian" matches "Brazil". */
+	/**
+	 * An RFQ without an origin matches any item; one with an origin needs an item that states a matching one
+	 * ("Brazilian" matches "Brazil").
+	 */
 	static boolean sameOrigin(String wanted, String offered) {
-		if (wanted == null || wanted.isBlank() || offered == null) {
+		if (wanted == null || wanted.isBlank()) {
 			return true;
+		}
+		// The buyer named an origin: an item that doesn't state one can't promise it.
+		if (offered == null || offered.isBlank()) {
+			return false;
 		}
 		String a = wanted.strip().toLowerCase(Locale.ROOT);
 		String b = offered.strip().toLowerCase(Locale.ROOT);
