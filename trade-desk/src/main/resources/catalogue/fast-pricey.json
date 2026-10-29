@@ -1,0 +1,6 @@
+[
+  { "sku": "FP-BR-MOGIANA", "description": "Mogiana natural, express air freight", "product": "green coffee beans", "origin": "Brazil",
+    "unit": "kg", "currency": "USD", "listPrice": "14.20", "floorPrice": "13.10", "stock": "600", "leadDays": 1 },
+  { "sku": "FP-CO-NARINO", "description": "Nariño washed, express air freight", "product": "green coffee beans", "origin": "Colombia",
+    "unit": "kg", "currency": "USD", "listPrice": "15.40", "floorPrice": "14.30", "stock": "400", "leadDays": 1 }
+]

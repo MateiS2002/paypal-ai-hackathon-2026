@@ -1,0 +1,6 @@
+[
+  { "sku": "CS-BR-SULMINAS", "description": "Sul de Minas natural, sea freight", "product": "green coffee beans", "origin": "Brazil",
+    "unit": "kg", "currency": "USD", "listPrice": "9.40", "floorPrice": "8.60", "stock": "2500", "leadDays": 9 },
+  { "sku": "CS-ET-SIDAMO", "description": "Sidamo natural, sea freight", "product": "green coffee beans", "origin": "Ethiopia",
+    "unit": "kg", "currency": "USD", "listPrice": "11.20", "floorPrice": "10.20", "stock": "900", "leadDays": 12 }
+]

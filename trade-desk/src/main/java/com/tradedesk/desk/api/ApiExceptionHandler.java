@@ -1,5 +1,6 @@
 package com.tradedesk.desk.api;
 
+import com.tradedesk.desk.agent.InvalidAgentMessageException;
 import com.tradedesk.desk.invoice.IdempotencyConflictException;
 import com.tradedesk.desk.invoice.InvalidInvoiceException;
 import com.tradedesk.desk.llm.LlmException;
@@ -31,6 +32,11 @@ public class ApiExceptionHandler {
 	@ExceptionHandler
 	ProblemDetail invalidNeed(InvalidNeedException ex) {
 		return problem(HttpStatus.BAD_REQUEST, "Invalid need", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail invalidAgentMessage(InvalidAgentMessageException ex) {
+		return problem(HttpStatus.BAD_REQUEST, "Invalid agent message", ex.getMessage());
 	}
 
 	@ExceptionHandler

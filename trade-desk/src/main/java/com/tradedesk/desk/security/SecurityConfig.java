@@ -4,10 +4,12 @@ import com.tradedesk.desk.config.DeskProperties;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -28,7 +30,27 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 @Configuration
 public class SecurityConfig {
 
+	/**
+	 * Desk-to-desk calls: no session, no cookie, no CSRF (the caller is another desk, not a browser).
+	 * TODO S5: require scoped token. Replace permitAll with a resource server that checks the registry-signed token,
+	 * its aud and the scope for the envelope type. Until then /agent/** is only reachable inside the compose network.
+	 */
 	@Bean
+	@Order(1)
+	SecurityFilterChain agentSecurity(HttpSecurity http) throws Exception {
+		http.securityMatcher("/agent/**")
+			.authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+			.csrf(AbstractHttpConfigurer::disable)
+			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+			.requestCache(cache -> cache.disable())
+			.formLogin(AbstractHttpConfigurer::disable)
+			.httpBasic(AbstractHttpConfigurer::disable)
+			.logout(AbstractHttpConfigurer::disable);
+		return http.build();
+	}
+
+	@Bean
+	@Order(2)
 	SecurityFilterChain deskUiSecurity(HttpSecurity http) throws Exception {
 		http
 			.authorizeHttpRequests(auth -> auth
