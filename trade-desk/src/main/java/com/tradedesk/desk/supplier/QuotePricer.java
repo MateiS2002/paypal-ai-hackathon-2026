@@ -28,7 +28,9 @@ public final class QuotePricer {
 
 	/** Words that don't say what the product is, so they don't count as a match on their own. */
 	private static final Set<String> FILLER = Set.of("green", "raw", "whole", "the", "of", "a", "an", "and", "for",
-			"some", "fresh", "good", "quality", "premium", "specialty", "unroasted");
+			"some", "fresh", "good", "quality", "premium", "specialty", "unroasted",
+			// Connecting words: "coffee beans from Brazil" asks for coffee beans, not for a product called "from".
+			"from", "with", "origin", "grown", "any", "our", "please", "per");
 
 	private QuotePricer() {
 	}
@@ -124,7 +126,9 @@ public final class QuotePricer {
 	static boolean sameProduct(String wanted, CatalogueItem item) {
 		Set<String> required = words(wanted);
 		Set<String> offered = words(item.product() + " " + item.description());
-		required.removeIf(word -> offered.contains(word) || item.origin() != null && sameOrigin(word, item.origin()));
+		// A blank origin is no evidence: it would "match" every word.
+		boolean hasOrigin = item.origin() != null && !item.origin().isBlank();
+		required.removeIf(word -> offered.contains(word) || hasOrigin && sameOrigin(word, item.origin()));
 		return required.isEmpty() && !words(wanted).isEmpty();
 	}
 

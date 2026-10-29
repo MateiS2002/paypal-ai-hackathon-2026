@@ -128,6 +128,17 @@ class QuotePricerTest {
 		}
 		assertThat(QuotePricer.sameProduct("Colombian coffee beans", SANTOS)).isFalse();
 		assertThat(QuotePricer.sameProduct("green", SANTOS)).isFalse();
+		assertThat(QuotePricer.sameProduct("coffee beans from Brazil", SANTOS)).isTrue();
+		assertThat(QuotePricer.sameProduct("green coffee beans with origin Brazil", SANTOS)).isTrue();
+	}
+
+	@Test
+	void aBlankOriginIsNoEvidenceForAnyWord() {
+		CatalogueItem noOrigin = new CatalogueItem("N", "House blend", "green coffee beans", " ", Unit.KG, "USD",
+				new BigDecimal("10.00"), new BigDecimal("9.00"), new BigDecimal("100"), 2);
+
+		assertThat(QuotePricer.sameProduct("oat milk", noOrigin)).isFalse();
+		assertThat(QuotePricer.sameProduct("green coffee beans", noOrigin)).isTrue();
 	}
 
 	@Test

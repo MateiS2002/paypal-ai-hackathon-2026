@@ -33,6 +33,27 @@ function newer(current: QuoteRow[] | undefined, incoming: QuoteRow[]): QuoteRow[
   return current && current.length > incoming.length ? current : incoming
 }
 
+/** A need only moves forward (COLLECTING to COMPLETE, more quotes), so the further-along copy is the newer one. */
+function furthest(a: NeedRow, b: NeedRow): NeedRow {
+  if (a.status !== b.status) return a.status === 'COMPLETE' ? a : b
+  return a.quotesReceived >= b.quotesReceived ? a : b
+}
+
+/** Adds or updates one need without ever taking it back to an older state. */
+function upsertNeed(needs: NeedRow[], need: NeedRow): NeedRow[] {
+  const current = needs.find((n) => n.id === need.id)
+  return upsert(needs, current ? furthest(current, need) : need)
+}
+
+/**
+ * Merges a reload into what the stream already delivered: an event that arrived while the reload was in flight
+ * (a newer status, a need posted after the snapshot) is kept, not overwritten. Newest first.
+ */
+function mergeNeeds(current: NeedRow[], found: NeedRow[]): NeedRow[] {
+  const merged = current.reduce(upsertNeed, found)
+  return [...merged].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
 export default function DeskHome({ desk, user, onLogout }: Props) {
   const [live, setLive] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,7 +87,7 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
     if (!buys) return
     listNeeds(desk)
       .then((found) => {
-        setNeeds(found)
+        setNeeds((current) => mergeNeeds(current, found))
         // Keep the owner's pick if it still exists, else show the newest need.
         setSelected((current) => (current && found.some((n) => n.id === current) ? current : (found[0]?.id ?? null)))
         found.slice(0, 5).forEach((need) => loadQuotes(need.id))
@@ -93,7 +114,7 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
     const onEvent = (event: DeskEvent) => {
       if (event.type === 'need.updated') {
         const need = event.data as NeedRow
-        setNeeds((current) => upsert(current, need))
+        setNeeds((current) => upsertNeed(current, need))
         return
       }
       if (event.type === 'quote.received') {
@@ -117,13 +138,15 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
     return subscribe(desk, onEvent, onStatus)
   }, [desk, reload, reloadNeeds])
 
-  // An older need picked from the list: fetch its quotes once.
-  const known = selected !== null && selected in quotes
-  useEffect(() => {
-    if (selected && !known) loadQuotes(selected)
-  }, [selected, known, loadQuotes])
-
   const need = needs.find((n) => n.id === selected) ?? null
+
+  // Fetch the selected need's quotes when none are cached, or when the cache is behind the need's own count
+  // (quote events missed while the stream was down are not replayed).
+  const cached = selected !== null ? quotes[selected] : undefined
+  const caughtUp = cached !== undefined && cached.length >= (need?.quotesReceived ?? 0)
+  useEffect(() => {
+    if (selected && !caughtUp) loadQuotes(selected)
+  }, [selected, caughtUp, loadQuotes])
 
   const signOut = async () => {
     // Only leave the dashboard once the server has really ended the session.
@@ -161,9 +184,7 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
             desk={desk}
             onPosted={(posted) => {
               // The fan-out can finish (need.updated: COMPLETE) before this response arrives; keep the newer state.
-              setNeeds((current) =>
-                current.some((n) => n.id === posted.id && n.status === 'COMPLETE') ? current : upsert(current, posted),
-              )
+              setNeeds((current) => upsertNeed(current, posted))
               setSelected(posted.id)
             }}
           />

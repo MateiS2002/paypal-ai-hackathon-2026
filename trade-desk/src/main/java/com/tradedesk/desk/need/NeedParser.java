@@ -83,9 +83,12 @@ public class NeedParser {
 	 * and is dropped. A bare number such as the quantity in "50 kg beans" is not a date cue.
 	 */
 	private static final Pattern DATE_CUE = Pattern.compile("\\d{1,4}[/-]\\d{1,2}|\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}|"
-			+ "\\d{1,2}(st|nd|rd|th)\\b|\\b\\d+\\s+days?\\b|\\b\\d+\\s*(hours?|hrs?)\\b|"
-			+ "\\b(today|tonight|tomorrow|week|weekend|month|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|"
-			+ "jul|aug|sep|oct|nov|dec)", Pattern.CASE_INSENSITIVE);
+			+ "\\d{1,2}(st|nd|rd|th)\\b|\\b\\d{1,4}\\s+days?\\b|\\b\\d{1,4}\\s*(hours?|hrs?)\\b|"
+			// Whole words only, so "decaf", "market" or "maybe" don't count as dec, mar or may.
+			+ "\\b(today|tonight|tomorrow|weeks?|weekend|months?|monday|tuesday|wednesday|thursday|friday|saturday|"
+			+ "sunday|mon|tues?|wed|thu|thurs?|fri|sat|sun|january|february|march|april|may|june|july|august|"
+			+ "september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\\b",
+			Pattern.CASE_INSENSITIVE);
 
 	/**
 	 * A quantity with its unit right after it ("50 kg", "50kg", "fifty kilos", "100 lb"). The unit must be attached
@@ -105,7 +108,8 @@ public class NeedParser {
 
 	private static final Pattern ISO_DATE = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
 
-	private static final Pattern IN_DAYS = Pattern.compile("\\b(\\d+)\\s+days?\\b", Pattern.CASE_INSENSITIVE);
+	/** At most four digits: a longer count can't be a delivery date, and must not overflow the date maths. */
+	private static final Pattern IN_DAYS = Pattern.compile("\\b(\\d{1,4})\\s+days?\\b", Pattern.CASE_INSENSITIVE);
 
 	/**
 	 * Words that mark a number as a price or a limit ($15, 15 USD, 15/kg, max 15, under 15, at most 15). A budget

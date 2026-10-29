@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import com.tradedesk.desk.config.DeskProperties;
 import com.tradedesk.desk.contract.Unit;
@@ -153,6 +154,24 @@ class NeedParserTest {
 
 		// Cues Java can't resolve on its own still pass; the owner checks them on the card.
 		assertThat(parser.parse("50 kg beans next week").request().deliverBy()).isEqualTo(LocalDate.of(2026, 11, 10));
+	}
+
+	@Test
+	void wordsThatOnlyStartLikeADateAreNotDateCues() {
+		llm.answering(proposal("decaf beans", null, "50", "kg", "2026-11-09", null, null));
+
+		for (String text : List.of("50 kg decaf beans", "50 kg market blend", "50 kg monsooned beans",
+				"50 kg beans, maybe")) {
+			assertThat(parser.parse(text).missing()).as(text).containsExactly("deliverBy");
+		}
+	}
+
+	@Test
+	void aHugeDayCountIsAQuestionNotACrash() {
+		llm.answering(proposal("beans", null, "50", "kg", "2026-11-09", null, null));
+
+		assertThat(parser.parse("50 kg beans in 99999999999999999999 days").missing()).containsExactly("deliverBy");
+		assertThat(parser.parse("50 kg beans in 7 days").request().deliverBy()).isEqualTo(LocalDate.of(2026, 11, 9));
 	}
 
 	@Test
