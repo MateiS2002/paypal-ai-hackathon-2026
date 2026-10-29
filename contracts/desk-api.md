@@ -32,7 +32,7 @@ Every desk (café, roaster, simulated suppliers) is the same `trade-desk` app an
 | `POST /api/needs/parse` | session | S2 | `{"text"}` to a [parse result](#parse-result). No side effects. |
 | `POST /api/needs` | session | S2 | A confirmed [purchase request](#purchase-request); stores the need and sends an RFQ to every supplier. See [Posting a need](#posting-a-need). |
 | `GET /api/needs` | session | S2 | This desk's needs, newest first: an array of [need rows](#need-row). |
-| `GET /api/needs/{id}/quotes` | session | S2 | The need's valid quotes, ranked best first: an array of [quote rows](#quote-row). `404` for an unknown need. |
+| `GET /api/needs/{id}/quotes` | session | S2 | Every quote for the need that passed the desk's checks, ranked best first: an array of [quote rows](#quote-row). Quotes past their `validUntil` are included, the same as in `quote.received`; malformed replies never are. `404` for an unknown need. |
 
 ## Events (`GET /api/events`)
 
