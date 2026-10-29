@@ -5,6 +5,7 @@ Shared contracts that every service builds against. Change them in their own sma
 | File | What it defines |
 | --- | --- |
 | [envelope.schema.json](envelope.schema.json) | The JSON envelope of every desk-to-desk message (`rfq`, `quote`, `counter`, `accept`, `reject`, `invoice`, `invoice.status`). Slices define each type's `body`. |
+| [agent-messages.md](agent-messages.md) | `POST /agent/messages` and each message type's `body` (`rfq`, `quote`, `reject` from S2). |
 | [money.schema.json](money.schema.json) | Money: `{"amount": "12.50", "currency": "USD"}`, a decimal string on the wire, `BigDecimal` in Java, never a float. |
 | [sse-event.schema.json](sse-event.schema.json) | One event on a desk's `GET /api/events` stream. |
 | [desk-api.md](desk-api.md) | Frontend-to-desk REST routes and SSE event types. |
@@ -49,5 +50,6 @@ Per-desk settings that aren't secret are set per service in [`docker-compose.yml
 | `DESK_REGION` | `US-CA` | ISO 3166-2. |
 | `DESK_TIME_ZONE` | `America/Los_Angeles` | IANA zone. The desk refuses to start if it isn't valid. |
 | `DESK_INVOICE_APPROVAL_ABOVE` | `500.00` | Roaster only, used by S7. Amount in USD; messy orders in another currency are always held. |
-| `DESK_PERSONA` | | Simulated suppliers' personality (S2). |
+| `DESK_PERSONA` | `fast-pricey` | Which seeded catalogue a supplier desk sells from (S2): `roaster` (the real roaster), or the SIMULATED personas `fast-pricey`, `cheap-slow`, `low-stock`. Empty means the desk sells nothing and rejects every RFQ (the café). |
+| `DESK_PEERS` | `roaster.test=http://roaster:8080` | Buyer desks only (S2): comma-separated `domain=base URL` pairs of the suppliers that get each RFQ. The domain goes in the envelope's `to`; the URL is where `POST /agent/messages` is sent inside compose. S4 replaces this list with a registry lookup. |
 | `DESK_SIMULATED` | `false` | `true` for SIMULATED suppliers. |

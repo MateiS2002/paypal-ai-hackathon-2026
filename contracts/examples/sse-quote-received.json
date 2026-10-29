@@ -1,0 +1,24 @@
+{
+  "type": "quote.received",
+  "data": {
+    "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+    "quotes": [
+      {
+        "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+        "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+        "rank": 1,
+        "supplier": { "domain": "roaster.test", "name": "Roaster & Co", "simulated": false },
+        "unitPrice": { "amount": "11.40", "currency": "USD" },
+        "quantity": "50",
+        "availableQuantity": "320",
+        "unit": "kg",
+        "total": { "amount": "570.00", "currency": "USD" },
+        "deliveryDate": "2026-11-05",
+        "validUntil": "2026-11-04T10:00:00Z",
+        "partial": false,
+        "note": "Fresh Cerrado lot, ships from Oakland in two days.",
+        "receivedAt": "2026-11-03T10:00:01Z"
+      }
+    ]
+  }
+}
