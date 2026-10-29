@@ -32,7 +32,7 @@ Secrets live in `.env` (gitignored), with placeholders in [`.env.example`](../.e
 | --- | --- | --- |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | roaster | Sandbox REST app. The base URL is a constant `https://api-m.sandbox.paypal.com` in code, not a variable, so nothing can point it at live. |
 | `PAYPAL_SIM_CLIENT_ID`, `PAYPAL_SIM_CLIENT_SECRET` | simulated suppliers | One shared sandbox merchant for every SIMULATED supplier. |
-| `PAYPAL_SANDBOX_BUYER_EMAIL` | café | The sandbox buyer account that receives invoices. |
+| `PAYPAL_SANDBOX_BUYER_EMAIL` | café, roaster | The sandbox buyer account that receives invoices. The roaster seeds it as the customer Bean There. |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | desks, registry | Model defaults to GPT-6 Luna. |
 | `POSTGRES_PASSWORD` | postgres, desks, registry | Required. |
 | `ELASTIC_PASSWORD` | elasticsearch, registry | Required (at least 6 characters). Used from S6. |
@@ -48,6 +48,6 @@ Per-desk settings that aren't secret are set per service in [`docker-compose.yml
 | `DESK_LOCATION` | `37.7749,-122.4194` | `lat,lon`. |
 | `DESK_REGION` | `US-CA` | ISO 3166-2. |
 | `DESK_TIME_ZONE` | `America/Los_Angeles` | IANA zone. The desk refuses to start if it isn't valid. |
-| `DESK_INVOICE_APPROVAL_ABOVE` | `500.00` | Roaster only, used by S7. |
+| `DESK_INVOICE_APPROVAL_ABOVE` | `500.00` | Roaster only, used by S7. Amount in USD; messy orders in another currency are always held. |
 | `DESK_PERSONA` | | Simulated suppliers' personality (S2). |
 | `DESK_SIMULATED` | `false` | `true` for SIMULATED suppliers. |

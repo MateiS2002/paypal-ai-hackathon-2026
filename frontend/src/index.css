@@ -182,3 +182,121 @@ button:disabled {
 .grid {
   height: 24rem;
 }
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Ledger */
+
+.row-paid {
+  background: #ecfdf3;
+}
+
+.pill {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #eef2f6;
+  color: #364152;
+}
+
+.pill-SENT,
+.pill-PAYMENT_PENDING {
+  background: #eff4ff;
+  color: #1849a9;
+}
+
+.pill-PAID {
+  background: #dcfae6;
+  color: #067647;
+}
+
+.pill-PARTIALLY_PAID,
+.pill-AWAITING_APPROVAL {
+  background: #fef0c7;
+  color: #93370d;
+}
+
+.pill-UNPAID,
+.pill-CANCELLED,
+.pill-REFUNDED {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+/* New invoice form */
+
+.invoice-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.form-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.form-head h2 {
+  margin: 0;
+}
+
+.invoice-form .row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+select {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.lines {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lines th {
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 0 0.4rem 0.3rem 0;
+}
+
+.lines td {
+  padding: 0 0.4rem 0.4rem 0;
+}
+
+.lines td:first-child {
+  width: 55%;
+}
+
+.lines input {
+  width: 100%;
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0.25rem 0;
+}
+
+button.link:disabled {
+  color: var(--muted);
+}
+
+.add-line {
+  align-self: flex-start;
+}

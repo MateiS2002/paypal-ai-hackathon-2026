@@ -1,0 +1,24 @@
+{
+  "type": "invoice.updated",
+  "data": {
+    "id": "6f1c2e8a-3b0d-4c55-9a51-0c6f3c1d2b7e",
+    "invoiceNumber": "0042",
+    "customer": { "name": "Bean There", "email": "buyer@example.com" },
+    "lines": [
+      {
+        "description": "Santos natural, kg",
+        "quantity": "0.333",
+        "unitPrice": { "amount": "18.00", "currency": "USD" },
+        "lineTotal": { "amount": "5.99", "currency": "USD" }
+      }
+    ],
+    "total": { "amount": "5.99", "currency": "USD" },
+    "status": "PAID",
+    "source": "MANUAL",
+    "dueDate": "2026-11-12",
+    "payerViewUrl": "https://www.sandbox.paypal.com/invoice/p/#INV2-EXAMPLE",
+    "createdAt": "2026-10-29T18:00:00Z",
+    "updatedAt": "2026-10-29T18:05:12Z",
+    "paidAt": "2026-10-29T18:05:12Z"
+  }
+}

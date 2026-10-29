@@ -7,7 +7,10 @@ import java.nio.file.Path;
 
 import com.tradedesk.desk.contract.AgentEnvelope;
 import com.tradedesk.desk.contract.Money;
+import com.tradedesk.desk.invoice.InvoiceRow;
+import com.tradedesk.desk.invoice.InvoiceStatus;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +44,18 @@ class ContractExamplesTest {
 
 		assertThat(money.amount()).isEqualByComparingTo(new BigDecimal("12.50"));
 		assertThat(json.writeValueAsString(money)).isEqualTo("{\"amount\":\"12.50\",\"currency\":\"USD\"}");
+	}
+
+	@Test
+	void invoiceUpdatedEventExampleParsesAsALedgerRow() throws IOException {
+		JsonNode event = json.readTree(Files.readString(EXAMPLES.resolve("sse-invoice-updated.json")));
+		InvoiceRow row = json.treeToValue(event.get("data"), InvoiceRow.class);
+
+		assertThat(event.get("type").asString()).isEqualTo("invoice.updated");
+		assertThat(row.status()).isEqualTo(InvoiceStatus.PAID);
+		assertThat(row.lines().getFirst().quantity()).isEqualByComparingTo("0.333");
+		assertThat(row.total().amount()).isEqualByComparingTo("5.99");
+		assertThat(json.writeValueAsString(row)).contains("\"quantity\":\"0.333\"");
 	}
 
 	@Test

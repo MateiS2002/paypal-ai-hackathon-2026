@@ -123,6 +123,8 @@ services:
       DESK_SIMULATED: "false"
       PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
       PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      # Seeds the demo customer Bean There, who receives and pays the roaster's invoices.
+      PAYPAL_SANDBOX_BUYER_EMAIL: ${PAYPAL_SANDBOX_BUYER_EMAIL:-}
     ports:
       - "127.0.0.1:8082:8080"
 

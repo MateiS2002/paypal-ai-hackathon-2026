@@ -19,6 +19,12 @@ server:
         http-only: true
         same-site: lax
 
+# PayPal SANDBOX REST app, for desks that send invoices. The base URL is a constant in PayPalClient, not a setting.
+paypal:
+  client-id: ${PAYPAL_CLIENT_ID:}
+  client-secret: ${PAYPAL_CLIENT_SECRET:}
+  sandbox-buyer-email: ${PAYPAL_SANDBOX_BUYER_EMAIL:}
+
 management:
   endpoints:
     web:
