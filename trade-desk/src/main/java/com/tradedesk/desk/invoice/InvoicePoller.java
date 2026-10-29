@@ -55,11 +55,15 @@ public class InvoicePoller {
 			}
 			catch (PayPalException ex) {
 				// PayPalClient already logged why. Wrong credentials won't fix themselves, so don't repeat that log
-				// every few seconds; anything else is retried next round.
+				// every few seconds. Errors that hit every invoice (401, unreachable, 5xx) end the round; anything
+				// else is about this one invoice (say, deleted in the sandbox dashboard), so the rest still get polled.
 				if (ex.status() == 401) {
 					pausedUntil = clock.instant().plus(CREDENTIALS_PAUSE);
 				}
-				return;
+				if (ex.status() == 401 || ex.status() == 0 || ex.status() >= 500) {
+					return;
+				}
+				continue;
 			}
 			if (status != open.status() && invoices.updateStatus(open.id(), status, clock.instant())) {
 				log.info("Invoice {} is now {} (was {})", open.id(), status, open.status());
