@@ -91,15 +91,16 @@ public class InvoiceService {
 		String text = source == InvoiceSource.MESSY_ORDER ? sourceText : null;
 		InvoiceTotals.Priced priced = InvoiceTotals.price(request);
 		boolean hold = needsApproval(source, priced, desk.invoiceApprovalAbove());
-		if (!hold && !payPal.configured()) {
-			throw new PayPalNotConfiguredException();
-		}
 		String hash = requestHash(priced, source, text);
 
 		synchronized (keyLocks[Math.floorMod(idempotencyKey.hashCode(), keyLocks.length)]) {
 			Optional<Operation> existing = invoices.findOperation(idempotencyKey);
 			if (existing.isPresent() && !existing.get().requestHash().equals(hash)) {
 				throw new IdempotencyConflictException();
+			}
+			// Only a new invoice needs PayPal up front; a retry of a finished one returns the stored row.
+			if (existing.isEmpty() && !hold && !payPal.configured()) {
+				throw new PayPalNotConfiguredException();
 			}
 			Operation operation = existing
 				.orElseGet(() -> start(idempotencyKey, priced, hash, hold, source, text));
