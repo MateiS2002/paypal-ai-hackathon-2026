@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { createInvoice, listCustomers, type Customer, type DeskId, type InvoiceRow, type NewInvoice } from './api'
 
-type Props = { desk: DeskId; onCreated: (row: InvoiceRow) => void; onClose: () => void }
+type Props = {
+  desk: DeskId
+  /**
+   * The idempotency key for this request body. The parent keeps it, so it outlives this form being closed and
+   * reopened: a retry of the same body reuses it and the desk resumes instead of duplicating.
+   */
+  keyFor: (body: string) => string
+  onCreated: (row: InvoiceRow) => void
+  onClose: () => void
+}
 
 type Line = { description: string; quantity: string; unitPrice: string }
 
@@ -13,7 +22,7 @@ const emptyLine = (): Line => ({ description: '', quantity: '', unitPrice: '' })
  * The owner's invoice form. Totals are not computed here: the desk prices every line in Java (BigDecimal) and the
  * ledger shows its result.
  */
-export default function NewInvoiceForm({ desk, onCreated, onClose }: Props) {
+export default function NewInvoiceForm({ desk, keyFor, onCreated, onClose }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [picked, setPicked] = useState(NEW_CUSTOMER)
   const [name, setName] = useState('')
@@ -21,8 +30,6 @@ export default function NewInvoiceForm({ desk, onCreated, onClose }: Props) {
   const [lines, setLines] = useState<Line[]>([emptyLine()])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  // One key per distinct invoice: a retry of the same form reuses it, so the desk resumes instead of duplicating.
-  const attempt = useRef<{ body: string; key: string } | null>(null)
 
   useEffect(() => {
     listCustomers(desk)
@@ -50,13 +57,12 @@ export default function NewInvoiceForm({ desk, onCreated, onClose }: Props) {
       })),
     }
     const body = JSON.stringify(invoice)
-    if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() }
+    const key = keyFor(body)
 
     setBusy(true)
     setError(null)
     try {
-      const row = await createInvoice(desk, attempt.current.key, invoice)
-      attempt.current = null
+      const row = await createInvoice(desk, key, invoice)
       onCreated(row)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

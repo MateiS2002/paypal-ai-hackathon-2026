@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { listInvoices, logout, subscribe, type DeskEvent, type DeskId, type InvoiceRow, type Me } from './api'
 import Ledger from './Ledger'
 import NewInvoiceForm from './NewInvoiceForm'
@@ -15,6 +15,8 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<InvoiceRow[]>([])
   const [creating, setCreating] = useState(false)
+  // Kept here, not in the form, so closing and reopening the form still retries with the same idempotency key.
+  const attempt = useRef<{ body: string; key: string } | null>(null)
   // Only the roaster sells and sends PayPal invoices in S1; the café pays them on PayPal's page.
   const sends = desk === 'roaster'
 
@@ -76,7 +78,12 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
       {creating && (
         <NewInvoiceForm
           desk={desk}
+          keyFor={(body) => {
+            if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() }
+            return attempt.current.key
+          }}
           onCreated={(row) => {
+            attempt.current = null
             setRows((current) => upsert(current, row))
             setCreating(false)
           }}
