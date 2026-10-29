@@ -138,6 +138,82 @@ export async function createInvoice(desk: DeskId, idempotencyKey: string, invoic
   return res.json()
 }
 
+// Needs and quotes (S2). Shapes match contracts/desk-api.md. Every number here was set and checked by the desks'
+// Java code; the UI only shows it.
+
+export type Unit = 'kg' | 'lb'
+
+export type Priority = 'SPEED' | 'PRICE' | 'BALANCED'
+
+export type PurchaseRequest = {
+  product: string | null
+  origin: string | null
+  quantity: string | null
+  unit: Unit | null
+  deliverBy: string | null
+  priority: Priority | null
+  maxUnitPrice: Money | null
+}
+
+export type ParseResult = {
+  complete: boolean
+  request: PurchaseRequest
+  missing: string[]
+  question: string | null
+}
+
+export type NeedRow = {
+  id: string
+  request: PurchaseRequest
+  status: 'COLLECTING' | 'COMPLETE'
+  suppliersAsked: number
+  quotesReceived: number
+  createdAt: string
+}
+
+export type QuoteRow = {
+  id: string
+  needId: string
+  rank: number
+  supplier: { domain: string; name: string; simulated: boolean }
+  unitPrice: Money
+  quantity: string
+  availableQuantity: string
+  unit: Unit
+  total: Money
+  deliveryDate: string
+  validUntil: string
+  partial: boolean
+  note: string
+  receivedAt: string
+}
+
+async function sendJson<T>(desk: DeskId, method: string, path: string, body: unknown, fallback: string,
+    headers: Record<string, string> = {}): Promise<T> {
+  const token = await csrf(desk)
+  const res = await fetch(`${base(desk)}${path}`, {
+    method,
+    credentials: 'same-origin',
+    headers: { [token.headerName]: token.token, 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw await problem(res, fallback)
+  return res.json()
+}
+
+/** The buyer agent's reading of the owner's words. Stores and sends nothing. */
+export const parseNeed = (desk: DeskId, text: string) =>
+  sendJson<ParseResult>(desk, 'POST', '/needs/parse', { text }, 'Reading the need failed')
+
+/** Posts a confirmed need; the desk then sends an RFQ to every supplier. Reuse the key when retrying. */
+export const postNeed = (desk: DeskId, idempotencyKey: string, request: PurchaseRequest) =>
+  sendJson<NeedRow>(desk, 'POST', '/needs', request, 'Posting the need failed', { 'Idempotency-Key': idempotencyKey })
+
+export const listNeeds = (desk: DeskId) => getJson<NeedRow[]>(desk, '/needs')
+
+/** Ranked best first by the desk. */
+export const listQuotes = (desk: DeskId, needId: string) => getJson<QuoteRow[]>(desk, `/needs/${needId}/quotes`)
+
 /** Opens the desk's SSE stream. Call the returned function to close it. */
 export function subscribe(desk: DeskId, onEvent: (event: DeskEvent) => void, onStatus: (open: boolean) => void) {
   const source = new EventSource(`${base(desk)}/events`)
