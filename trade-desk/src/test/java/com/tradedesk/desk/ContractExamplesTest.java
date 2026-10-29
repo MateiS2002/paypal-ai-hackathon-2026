@@ -5,8 +5,13 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import com.tradedesk.desk.agent.AgentJson;
+import com.tradedesk.desk.agent.QuoteBody;
+import com.tradedesk.desk.agent.RfqBody;
 import com.tradedesk.desk.contract.AgentEnvelope;
 import com.tradedesk.desk.contract.Money;
+import com.tradedesk.desk.contract.Unit;
+import com.tradedesk.desk.need.QuoteRow;
 import com.tradedesk.desk.invoice.InvoiceRow;
 import com.tradedesk.desk.invoice.InvoiceStatus;
 import org.junit.jupiter.api.Test;
@@ -56,6 +61,33 @@ class ContractExamplesTest {
 		assertThat(row.lines().getFirst().quantity()).isEqualByComparingTo("0.333");
 		assertThat(row.total().amount()).isEqualByComparingTo("5.99");
 		assertThat(json.writeValueAsString(row)).contains("\"quantity\":\"0.333\"");
+	}
+
+	@Test
+	void agentMessageExamplesParseStrictlyIntoTheirBodies() throws IOException {
+		AgentJson agentJson = new AgentJson();
+		AgentEnvelope rfq = agentJson.envelope(Files.readString(EXAMPLES.resolve("envelope-rfq.json"))).orElseThrow();
+		AgentEnvelope quote = agentJson.envelope(Files.readString(EXAMPLES.resolve("envelope-quote.json")))
+			.orElseThrow();
+
+		RfqBody rfqBody = agentJson.body(rfq.body(), RfqBody.class).orElseThrow();
+		QuoteBody quoteBody = agentJson.body(quote.body(), QuoteBody.class).orElseThrow();
+
+		assertThat(rfqBody.unit()).isEqualTo(Unit.KG);
+		assertThat(quote.type()).isEqualTo(AgentEnvelope.Type.QUOTE);
+		assertThat(quoteBody.rfqId()).isEqualTo(rfq.messageId());
+		assertThat(quoteBody.unitPrice().amount()).isEqualByComparingTo("11.40");
+	}
+
+	@Test
+	void quoteReceivedExampleParsesAsQuoteRows() throws IOException {
+		JsonNode event = json.readTree(Files.readString(EXAMPLES.resolve("sse-quote-received.json")));
+		QuoteRow row = json.treeToValue(event.get("data").get("quotes").get(0), QuoteRow.class);
+
+		assertThat(event.get("type").asString()).isEqualTo("quote.received");
+		assertThat(row.rank()).isEqualTo(1);
+		assertThat(row.total().amount()).isEqualByComparingTo("570.00");
+		assertThat(json.writeValueAsString(row)).contains("\"quantity\":\"50\"");
 	}
 
 	@Test

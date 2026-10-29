@@ -6,6 +6,8 @@ import com.tradedesk.desk.invoice.InvalidInvoiceException;
 import com.tradedesk.desk.llm.LlmException;
 import com.tradedesk.desk.llm.LlmNotConfiguredException;
 import com.tradedesk.desk.need.InvalidNeedException;
+import com.tradedesk.desk.need.NeedKeyConflictException;
+import com.tradedesk.desk.need.NeedNotFoundException;
 import com.tradedesk.desk.paypal.PayPalException;
 import com.tradedesk.desk.paypal.PayPalNotConfiguredException;
 
@@ -32,6 +34,16 @@ public class ApiExceptionHandler {
 	@ExceptionHandler
 	ProblemDetail invalidNeed(InvalidNeedException ex) {
 		return problem(HttpStatus.BAD_REQUEST, "Invalid need", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail needKeyConflict(NeedKeyConflictException ex) {
+		return problem(HttpStatus.CONFLICT, "Idempotency-Key reused", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail needNotFound(NeedNotFoundException ex) {
+		return problem(HttpStatus.NOT_FOUND, "Need not found", ex.getMessage());
 	}
 
 	@ExceptionHandler
