@@ -32,7 +32,7 @@ Secrets live in `.env` (gitignored), with placeholders in [`.env.example`](../.e
 | --- | --- | --- |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | roaster | Sandbox REST app. The base URL is a constant `https://api-m.sandbox.paypal.com` in code, not a variable, so nothing can point it at live. |
 | `PAYPAL_SIM_CLIENT_ID`, `PAYPAL_SIM_CLIENT_SECRET` | simulated suppliers | One shared sandbox merchant for every SIMULATED supplier. |
-| `PAYPAL_SANDBOX_BUYER_EMAIL` | café | The sandbox buyer account that receives invoices. |
+| `PAYPAL_SANDBOX_BUYER_EMAIL` | café, roaster | The sandbox buyer account that receives invoices. The roaster seeds it as the customer Bean There. |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | desks, registry | Model defaults to GPT-6 Luna. |
 | `POSTGRES_PASSWORD` | postgres, desks, registry | Required. |
 | `ELASTIC_PASSWORD` | elasticsearch, registry | Required (at least 6 characters). Used from S6. |

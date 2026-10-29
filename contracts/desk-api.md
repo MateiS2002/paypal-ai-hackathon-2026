@@ -28,6 +28,7 @@ Every desk (café, roaster, simulated suppliers) is the same `trade-desk` app an
 | `GET /api/events` | session | S0 | Server-sent events, see below. |
 | `GET /api/invoices` | session | S1 | Ledger rows, newest first: an array of [invoice rows](#invoice-row). |
 | `POST /api/invoices` | session | S1 | Create a PayPal sandbox invoice and send it. See [Creating an invoice](#creating-an-invoice). |
+| `GET /api/customers` | session | S1 | Known customers for the new-invoice form: `[{"name", "email"}]`. The roaster seeds Bean There with `PAYPAL_SANDBOX_BUYER_EMAIL`. |
 
 ## Events (`GET /api/events`)
 
