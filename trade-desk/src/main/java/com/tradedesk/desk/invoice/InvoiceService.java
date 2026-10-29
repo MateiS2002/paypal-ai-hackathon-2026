@@ -41,6 +41,9 @@ public class InvoiceService {
 	/** PayPal has no NET_14 term, so invoices get an explicit due date this many days out. */
 	static final int DUE_IN_DAYS = 14;
 
+	/** {@code DESK_INVOICE_APPROVAL_ABOVE} is an amount in this currency. */
+	static final String APPROVAL_LIMIT_CURRENCY = "USD";
+
 	private static final Logger log = LoggerFactory.getLogger(InvoiceService.class);
 
 	/** One desk is one JVM, so striped locks are enough to serialise requests that share a key. */
@@ -87,7 +90,7 @@ public class InvoiceService {
 		Objects.requireNonNull(source, "source");
 		String text = source == InvoiceSource.MESSY_ORDER ? sourceText : null;
 		InvoiceTotals.Priced priced = InvoiceTotals.price(request);
-		boolean hold = needsApproval(source, priced.total());
+		boolean hold = needsApproval(source, priced, desk.invoiceApprovalAbove());
 		if (!hold && !payPal.configured()) {
 			throw new PayPalNotConfiguredException();
 		}
@@ -213,10 +216,14 @@ public class InvoiceService {
 					.toList());
 	}
 
-	private boolean needsApproval(InvoiceSource source, BigDecimal total) {
+	static boolean needsApproval(InvoiceSource source, InvoiceTotals.Priced priced, BigDecimal limit) {
 		// MANUAL invoices are typed by the owner and NEGOTIATION ones were approved on the café side: never held.
-		return source == InvoiceSource.MESSY_ORDER && desk.invoiceApprovalAbove() != null
-				&& total.compareTo(desk.invoiceApprovalAbove()) > 0;
+		if (source != InvoiceSource.MESSY_ORDER) {
+			return false;
+		}
+		// Fail closed: with no limit set, or an amount in another currency than the limit's, the owner decides.
+		return limit == null || !APPROVAL_LIMIT_CURRENCY.equals(priced.currency())
+				|| priced.total().compareTo(limit) > 0;
 	}
 
 	private boolean isHeld(UUID invoiceId) {

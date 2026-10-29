@@ -21,7 +21,8 @@ import org.springframework.validation.annotation.Validated;
  * @param location {@code lat,lon}
  * @param region ISO 3166-2 code such as {@code US-CA}
  * @param timeZone IANA zone such as {@code America/Los_Angeles}
- * @param invoiceApprovalAbove invoices above this amount wait for the owner's approval (roaster only, used by S7)
+ * @param invoiceApprovalAbove messy-order invoices above this USD amount, in another currency, or on a desk with
+ *     no limit set wait for the owner's approval (roaster only, used by S7)
  * @param persona free-text personality for simulated suppliers
  * @param simulated true for SIMULATED suppliers, shown as such in the UI
  * @param demoPassword demo login password, from {@code DESK_DEMO_PASSWORD} in .env

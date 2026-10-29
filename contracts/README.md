@@ -48,6 +48,6 @@ Per-desk settings that aren't secret are set per service in [`docker-compose.yml
 | `DESK_LOCATION` | `37.7749,-122.4194` | `lat,lon`. |
 | `DESK_REGION` | `US-CA` | ISO 3166-2. |
 | `DESK_TIME_ZONE` | `America/Los_Angeles` | IANA zone. The desk refuses to start if it isn't valid. |
-| `DESK_INVOICE_APPROVAL_ABOVE` | `500.00` | Roaster only, used by S7. |
+| `DESK_INVOICE_APPROVAL_ABOVE` | `500.00` | Roaster only, used by S7. Amount in USD; messy orders in another currency are always held. |
 | `DESK_PERSONA` | | Simulated suppliers' personality (S2). |
 | `DESK_SIMULATED` | `false` | `true` for SIMULATED suppliers. |
