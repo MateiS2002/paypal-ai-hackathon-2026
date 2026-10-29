@@ -134,6 +134,22 @@ class SupplierAgentIntegrationTest {
 	}
 
 	@Test
+	void refusesCrossSiteBrowserRequestsBeforeReadingThem() throws Exception {
+		UUID conversationId = UUID.randomUUID();
+		String body = rfq(UUID.randomUUID(), conversationId, "roaster.test", "rfq");
+
+		mvc.perform(post("/agent/messages").contentType(MediaType.APPLICATION_JSON).content(body)
+			.header("Origin", "https://evil.example"))
+			.andExpect(status().isForbidden());
+		mvc.perform(post("/agent/messages").contentType(MediaType.APPLICATION_JSON).content(body)
+			.header("Sec-Fetch-Site", "cross-site"))
+			.andExpect(status().isForbidden());
+
+		// Refused before the inbox: nothing was stored or quoted.
+		assertThat(conversations.conversation(conversationId)).isEmpty();
+	}
+
+	@Test
 	void needsNoSessionOrCsrfButTheUiStillDoes() throws Exception {
 		send(rfq(UUID.randomUUID(), UUID.randomUUID(), "roaster.test", "rfq"), 200);
 		mvc.perform(post("/api/needs/parse").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"x\"}"))

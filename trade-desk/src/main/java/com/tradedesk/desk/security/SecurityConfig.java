@@ -18,6 +18,7 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 /**
@@ -31,16 +32,20 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 public class SecurityConfig {
 
 	/**
-	 * Desk-to-desk calls: no session, no cookie, no CSRF (the caller is another desk, not a browser).
+	 * Desk-to-desk calls: no session and no cookie (the caller is another desk, not a browser). There is no ambient
+	 * credential for a CSRF token to protect, so the token check is skipped for /agent/** only; instead
+	 * {@link RefuseBrowserRequests} refuses anything a browser sends cross-site.
 	 * TODO S5: require scoped token. Replace permitAll with a resource server that checks the registry-signed token,
-	 * its aud and the scope for the envelope type. Until then /agent/** is only reachable inside the compose network.
+	 * its aud and the scope for the envelope type. Until then /agent/** is only reachable inside the compose network
+	 * and from this machine's 127.0.0.1 ports.
 	 */
 	@Bean
 	@Order(1)
 	SecurityFilterChain agentSecurity(HttpSecurity http) throws Exception {
 		http.securityMatcher("/agent/**")
 			.authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
-			.csrf(AbstractHttpConfigurer::disable)
+			.addFilterBefore(new RefuseBrowserRequests(), CsrfFilter.class)
+			.csrf(csrf -> csrf.ignoringRequestMatchers("/agent/**"))
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.requestCache(cache -> cache.disable())
 			.formLogin(AbstractHttpConfigurer::disable)
