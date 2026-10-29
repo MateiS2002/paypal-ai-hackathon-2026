@@ -142,7 +142,8 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
 ```
 
 - `request` has the same fields as a purchase request, but any of them may be `null`. For the demo text `50 kg Brazilian beans by Friday, prioritise speed` it is complete: Brazil, `50` `kg`, the coming Friday's date (relative days are resolved from today in the desk's time zone), `SPEED`.
-- `missing` lists the fields the owner must still fill in. The desk never guesses a quantity or a date that isn't in the text. A missing `priority` defaults to `BALANCED` and is not listed.
+- `missing` lists the fields the owner must still fill in. The desk never guesses a quantity, a unit, a date or a budget that isn't in the text: Java drops any the text doesn't state. A missing `priority` defaults to `BALANCED` and is not listed.
+- `product` is normalised for a café's needs, not guessed: "beans" on their own become `green coffee beans`, the product suppliers match against. This is a documented default, not an inferred fact, and the owner sees and can edit it on the request card before anything is sent.
 - `question` is written by the desk's code from `missing`, not by the LLM. It is `null` when `complete` is `true`.
 - `complete` is `true` only when `request` passes every rule above, so the UI can post it unchanged.
 
