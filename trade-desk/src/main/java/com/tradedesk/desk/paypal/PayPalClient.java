@@ -76,6 +76,8 @@ public class PayPalClient {
 		PayPalInvoicing.NextNumber next = call("generate invoice number", token -> http.post()
 			.uri("/v2/invoicing/generate-next-invoice-number")
 			.headers(h -> h.setBearerAuth(token))
+			// No body, but PayPal answers 415 without a JSON content type.
+			.contentType(MediaType.APPLICATION_JSON)
 			.retrieve()
 			.onStatus(HttpStatusCode::isError, this::fail)
 			.body(PayPalInvoicing.NextNumber.class));

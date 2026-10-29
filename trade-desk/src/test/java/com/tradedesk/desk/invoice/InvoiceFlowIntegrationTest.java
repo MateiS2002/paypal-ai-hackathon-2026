@@ -95,7 +95,10 @@ class InvoiceFlowIntegrationTest {
 		PAYPAL.resetAll();
 		PAYPAL.stubFor(post("/v1/oauth2/token")
 			.willReturn(okJson("{\"access_token\":\"test-token\",\"token_type\":\"Bearer\",\"expires_in\":32400}")));
+		// Like the sandbox: 415 without a JSON content type, even though there is no body.
+		PAYPAL.stubFor(post("/v2/invoicing/generate-next-invoice-number").willReturn(aResponse().withStatus(415)));
 		PAYPAL.stubFor(post("/v2/invoicing/generate-next-invoice-number")
+			.withHeader("Content-Type", matching("application/json.*"))
 			.willReturn(okJson("{\"invoice_number\":\"0042\"}")));
 		PAYPAL.stubFor(post("/v2/invoicing/invoices").willReturn(okJson(invoice("DRAFT", "11.02")).withStatus(201)));
 		PAYPAL.stubFor(post(urlPathMatching("/v2/invoicing/invoices/" + payPalId + "/send")).willReturn(okJson(
