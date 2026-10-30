@@ -19,7 +19,7 @@ Counters go out, two suppliers improve their price, the agent says "Roaster: $1 
 - **Policy engine (plain Java):** café rules `maxUnitPrice`, `approvalAbove` (e.g. $500), `maxOrderTotal`. Outcomes: `AUTO_ACCEPT`, `NEEDS_APPROVAL`, `BLOCKED` with reasons. Café owner can edit the rules on a settings screen.
 - **Approval:** `approval.needed` SSE event, one-tap Approve or Reject in the UI. Nothing is sent to the supplier before approval.
 - **Accept to invoice:** café sends `accept`; supplier desk re-checks the quote is still valid and within floor, then calls `InvoiceService` with `source = NEGOTIATION` and returns the PayPal invoice id and payer link in its reply.
-- Café UI: "Invoices to pay" list with the PayPal pay link and live status. The supplier desk's S1 poller sends an `invoice.status` message to the café whenever the status changes; the café updates `payable.status` from it and emits `invoice.updated` on its own SSE stream.
+- Café UI: "Invoices to pay" list with the PayPal pay link and live status. The supplier desk's S1 poller sends an `invoice.status` message to the café whenever the status changes; the café updates `payable.status` from it and emits `payable.updated` on its own SSE stream (decided in the S3 contracts: `invoice.updated` stays the seller's ledger event).
 - Simulated suppliers invoice through the shared SIMULATED sandbox merchant.
 
 ## Out of scope
