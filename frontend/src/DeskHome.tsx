@@ -1,13 +1,57 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { listInvoices, logout, subscribe, type DeskEvent, type DeskId, type InvoiceRow, type Me } from './api'
+import {
+  listInvoices,
+  listNeeds,
+  listQuotes,
+  logout,
+  subscribe,
+  type DeskEvent,
+  type DeskId,
+  type InvoiceRow,
+  type Me,
+  type NeedRow,
+  type QuoteRow,
+} from './api'
+import { trimDecimals } from './format'
 import Ledger from './Ledger'
+import NeedBox from './NeedBox'
 import NewInvoiceForm from './NewInvoiceForm'
+import OffersGrid from './OffersGrid'
 
 type Props = { desk: DeskId; user: Me; onLogout: () => void }
 
 /** Replaces the row with the same id, or adds it at the top (the ledger is newest first). */
-function upsert(rows: InvoiceRow[], row: InvoiceRow): InvoiceRow[] {
+function upsert<T extends { id: string }>(rows: T[], row: T): T[] {
   return rows.some((r) => r.id === row.id) ? rows.map((r) => (r.id === row.id ? row : r)) : [row, ...rows]
+}
+
+/**
+ * Quote lists only grow, and each event carries the need's whole ranked list. So when a reload and an event race,
+ * the longer list is the newer one.
+ */
+function newer(current: QuoteRow[] | undefined, incoming: QuoteRow[]): QuoteRow[] {
+  return current && current.length > incoming.length ? current : incoming
+}
+
+/** A need only moves forward (COLLECTING to COMPLETE, more quotes), so the further-along copy is the newer one. */
+function furthest(a: NeedRow, b: NeedRow): NeedRow {
+  if (a.status !== b.status) return a.status === 'COMPLETE' ? a : b
+  return a.quotesReceived >= b.quotesReceived ? a : b
+}
+
+/** Adds or updates one need without ever taking it back to an older state. */
+function upsertNeed(needs: NeedRow[], need: NeedRow): NeedRow[] {
+  const current = needs.find((n) => n.id === need.id)
+  return upsert(needs, current ? furthest(current, need) : need)
+}
+
+/**
+ * Merges a reload into what the stream already delivered: an event that arrived while the reload was in flight
+ * (a newer status, a need posted after the snapshot) is kept, not overwritten. Newest first.
+ */
+function mergeNeeds(current: NeedRow[], found: NeedRow[]): NeedRow[] {
+  const merged = current.reduce(upsertNeed, found)
+  return [...merged].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
 export default function DeskHome({ desk, user, onLogout }: Props) {
@@ -24,6 +68,33 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
   const pending = useRef<InvoiceRow[] | null>(null)
   // Only the roaster sells and sends PayPal invoices in S1; the café pays them on PayPal's page.
   const sends = desk === 'roaster'
+  // Only the café buys: it posts needs and compares quotes (S2).
+  const buys = desk === 'cafe'
+  const [needs, setNeeds] = useState<NeedRow[]>([])
+  const [quotes, setQuotes] = useState<Record<string, QuoteRow[]>>({})
+  const [selected, setSelected] = useState<string | null>(null)
+
+  const loadQuotes = useCallback(
+    (needId: string) => {
+      listQuotes(desk, needId)
+        .then((found) => setQuotes((current) => ({ ...current, [needId]: newer(current[needId], found) })))
+        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+    },
+    [desk],
+  )
+
+  const reloadNeeds = useCallback(() => {
+    if (!buys) return
+    listNeeds(desk)
+      .then((found) => {
+        setNeeds((current) => mergeNeeds(current, found))
+        // Needs are never deleted, so the owner's pick stays valid even when this snapshot is older than it (a need
+        // posted while the reload was in flight). Without a pick, show the newest need.
+        setSelected((current) => current ?? found[0]?.id ?? null)
+        found.slice(0, 5).forEach((need) => loadQuotes(need.id))
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [buys, desk, loadQuotes])
 
   const reload = useCallback(() => {
     const buffered: InvoiceRow[] = []
@@ -42,6 +113,16 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
 
   useEffect(() => {
     const onEvent = (event: DeskEvent) => {
+      if (event.type === 'need.updated') {
+        const need = event.data as NeedRow
+        setNeeds((current) => upsertNeed(current, need))
+        return
+      }
+      if (event.type === 'quote.received') {
+        const { needId, quotes: ranked } = event.data as { needId: string; quotes: QuoteRow[] }
+        setQuotes((current) => ({ ...current, [needId]: newer(current[needId], ranked) }))
+        return
+      }
       if (event.type !== 'invoice.updated') return
       const row = event.data as InvoiceRow
       pending.current?.push(row)
@@ -50,10 +131,23 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
     const onStatus = (open: boolean) => {
       setLive(open)
       // Catch up on anything that changed while the stream was down.
-      if (open) reload()
+      if (open) {
+        reload()
+        reloadNeeds()
+      }
     }
     return subscribe(desk, onEvent, onStatus)
-  }, [desk, reload])
+  }, [desk, reload, reloadNeeds])
+
+  const need = needs.find((n) => n.id === selected) ?? null
+
+  // Fetch the selected need's quotes when none are cached, or when the cache is behind the need's own count
+  // (quote events missed while the stream was down are not replayed).
+  const cached = selected !== null ? quotes[selected] : undefined
+  const caughtUp = cached !== undefined && cached.length >= (need?.quotesReceived ?? 0)
+  useEffect(() => {
+    if (selected && !caughtUp) loadQuotes(selected)
+  }, [selected, caughtUp, loadQuotes])
 
   const signOut = async () => {
     // Only leave the dashboard once the server has really ended the session.
@@ -85,6 +179,32 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      {buys && (
+        <>
+          <NeedBox
+            desk={desk}
+            onPosted={(posted) => {
+              // The fan-out can finish (need.updated: COMPLETE) before this response arrives; keep the newer state.
+              setNeeds((current) => upsertNeed(current, posted))
+              setSelected(posted.id)
+            }}
+          />
+          {needs.length > 1 && (
+            <label className="need-picker">
+              Need
+              <select value={selected ?? ''} onChange={(e) => setSelected(e.target.value)}>
+                {needs.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {new Date(n.createdAt).toLocaleString()} · {trimDecimals(n.request.quantity ?? '')} {n.request.unit}{' '}
+                    {n.request.product} · {n.quotesReceived} quotes
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {need && <OffersGrid need={need} quotes={quotes[need.id] ?? []} />}
+        </>
+      )}
       <div className="section-head">
         <h2>Ledger</h2>
         {sends && !creating && (

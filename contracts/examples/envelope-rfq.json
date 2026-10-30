@@ -5,5 +5,11 @@
   "to": "roaster.test",
   "conversationId": "0b9e8d7c-6a5b-4c3d-8e2f-1a0b9c8d7e6f",
   "sentAt": "2026-11-03T10:00:00Z",
-  "body": {}
+  "body": {
+    "product": "green coffee beans",
+    "origin": "Brazil",
+    "quantity": "50",
+    "unit": "kg",
+    "deliverBy": "2026-11-07"
+  }
 }

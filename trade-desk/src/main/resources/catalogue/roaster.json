@@ -1,0 +1,8 @@
+[
+  { "sku": "RST-BR-SANTOS", "description": "Santos natural, Cerrado Mineiro", "product": "green coffee beans", "origin": "Brazil",
+    "unit": "kg", "currency": "USD", "listPrice": "12.00", "floorPrice": "10.80", "stock": "320", "leadDays": 2 },
+  { "sku": "RST-CO-HUILA", "description": "Huila washed, Colombia", "product": "green coffee beans", "origin": "Colombia",
+    "unit": "kg", "currency": "USD", "listPrice": "13.50", "floorPrice": "12.10", "stock": "150", "leadDays": 2 },
+  { "sku": "RST-ET-YIRGA", "description": "Yirgacheffe washed, grade 1", "product": "green coffee beans", "origin": "Ethiopia",
+    "unit": "kg", "currency": "USD", "listPrice": "15.00", "floorPrice": "13.40", "stock": "80", "leadDays": 3 }
+]

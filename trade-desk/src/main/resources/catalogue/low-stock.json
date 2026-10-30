@@ -1,0 +1,4 @@
+[
+  { "sku": "LS-BR-CARMO", "description": "Carmo de Minas micro-lot, natural", "product": "green coffee beans", "origin": "Brazil",
+    "unit": "kg", "currency": "USD", "listPrice": "11.20", "floorPrice": "10.40", "stock": "20", "leadDays": 3 }
+]

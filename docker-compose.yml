@@ -27,8 +27,9 @@ x-desk: &desk
 x-desk-env: &desk-env
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
   DESK_DEMO_PASSWORD: ${DESK_DEMO_PASSWORD:?Set DESK_DEMO_PASSWORD in .env (copy .env.example)}
-  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-  OPENAI_MODEL: ${OPENAI_MODEL:-}
+  # Without a key the desks still start; parsing a need answers 503 and quote notes use a template.
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-not-configured}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6-luna}
 
 services:
   postgres:
@@ -104,6 +105,8 @@ services:
       DESK_REGION: US-CA
       DESK_TIME_ZONE: America/Los_Angeles
       DESK_SIMULATED: "false"
+      # Suppliers that get every RFQ: domain=URL inside compose (S2). S4 replaces this with a registry lookup.
+      DESK_PEERS: roaster.test=http://roaster:8080,supplier-b.test=http://supplier-b:8080,supplier-c.test=http://supplier-c:8080,supplier-d.test=http://supplier-d:8080
       PAYPAL_SANDBOX_BUYER_EMAIL: ${PAYPAL_SANDBOX_BUYER_EMAIL:-}
     ports:
       - "127.0.0.1:8081:8080"
@@ -120,6 +123,7 @@ services:
       DESK_REGION: US-CA
       DESK_TIME_ZONE: America/Los_Angeles
       DESK_INVOICE_APPROVAL_ABOVE: "500.00"
+      DESK_PERSONA: roaster
       DESK_SIMULATED: "false"
       PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
       PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
@@ -128,7 +132,55 @@ services:
     ports:
       - "127.0.0.1:8082:8080"
 
-  # Simulated suppliers (supplier-b, -c, -d on ports 8083 to 8085) are added here by S2.
+  # SIMULATED suppliers: the same desk image with a seeded catalogue per DESK_PERSONA (trade-desk catalogue/*.json).
+  # They answer the café's RFQs after a short random delay so quotes arrive one at a time. Labelled SIMULATED in the UI.
+  supplier-b:
+    <<: *desk
+    environment:
+      <<: *desk-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplier-b
+      DESK_ID: supplier-b
+      DESK_NAME: Express Green Co
+      DESK_DOMAIN: supplier-b.test
+      DESK_LOCATION: "37.5485,-121.9886"
+      DESK_REGION: US-CA
+      DESK_TIME_ZONE: America/Los_Angeles
+      DESK_PERSONA: fast-pricey
+      DESK_SIMULATED: "true"
+    ports:
+      - "127.0.0.1:8083:8080"
+
+  supplier-c:
+    <<: *desk
+    environment:
+      <<: *desk-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplier-c
+      DESK_ID: supplier-c
+      DESK_NAME: Bulk Bean Traders
+      DESK_DOMAIN: supplier-c.test
+      DESK_LOCATION: "38.5816,-121.4944"
+      DESK_REGION: US-CA
+      DESK_TIME_ZONE: America/Los_Angeles
+      DESK_PERSONA: cheap-slow
+      DESK_SIMULATED: "true"
+    ports:
+      - "127.0.0.1:8084:8080"
+
+  supplier-d:
+    <<: *desk
+    environment:
+      <<: *desk-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplier-d
+      DESK_ID: supplier-d
+      DESK_NAME: Small Lot Imports
+      DESK_DOMAIN: supplier-d.test
+      DESK_LOCATION: "37.3382,-121.8863"
+      DESK_REGION: US-CA
+      DESK_TIME_ZONE: America/Los_Angeles
+      DESK_PERSONA: low-stock
+      DESK_SIMULATED: "true"
+    ports:
+      - "127.0.0.1:8085:8080"
 
   web:
     build: ./web

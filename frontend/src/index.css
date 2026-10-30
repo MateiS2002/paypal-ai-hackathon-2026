@@ -300,3 +300,81 @@ button.link:disabled {
 .add-line {
   align-self: flex-start;
 }
+
+/* Post a need and offers (S2) */
+
+textarea {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.need-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1.5rem 0 0;
+}
+
+.need-text {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.need-text label {
+  flex: 1;
+}
+
+.parsed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.parsed .row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.parsed p {
+  margin: 0;
+}
+
+.question {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: #fef0c7;
+  color: #93370d;
+}
+
+label.missing input,
+label.missing select {
+  border-color: #dc6803;
+  background: #fffaeb;
+}
+
+.need-picker {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-weight: 400;
+}
+
+.offers-grid {
+  height: 16rem;
+}
+
+.row-best {
+  background: #eff4ff;
+}
+
+.cell-warn {
+  color: #b54708;
+}
