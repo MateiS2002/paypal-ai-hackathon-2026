@@ -191,10 +191,53 @@ class NegotiationIntegrationTest {
 		assertThat(JsonPath.<String>read(blocked, "$.approval.decision")).isEqualTo("BLOCKED");
 		// The café countered at its 10.00 maximum; the roaster went down to its 10.80 floor, still too dear.
 		assertThat(JsonPath.<List<String>>read(blocked, "$.approval.reasons"))
-			.contains("The unit price 10.80 USD is above your maximum of 10.00 USD.");
+			.contains("The unit price 10.80 USD per kg is above your maximum of 10.00 USD per kg.");
 		decide(JsonPath.read(blocked, "$.approval.id"), "APPROVE").andExpect(status().isConflict());
 		Thread.sleep(300);
 		assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).isEmpty();
+	}
+
+	@Test
+	void aQuoteWhoseCounterAnswerWasDroppedIsNeverPicked() throws Exception {
+		// The roaster answers the counter with a "revision" dearer than its quote: dropped, and the roaster may have
+		// replaced its quote, so Java picks the next one even though the roaster ranks first for speed.
+		SUPPLIERS.brokenRevision = true;
+		try {
+			String needId = postNeed("50");
+			String done = awaitRecommendation(needId, r -> "INVOICED".equals(JsonPath.read(r, "$.approval.order")));
+
+			assertThat(JsonPath.<String>read(done, "$.pick.supplier.domain")).isEqualTo("supplier-c.test");
+			mvc.perform(get("/api/needs/" + needId + "/quotes").with(user("cafe")))
+				.andExpect(jsonPath("$[0].supplier.domain").value("roaster.test"))
+				.andExpect(jsonPath("$[0].counter.outcome").value("NO_ANSWER"))
+				.andExpect(jsonPath("$[0].unitPrice.amount").value("11.40"));
+			// 50 × 8.93 = 446.50: under the limit, so it auto-accepts, and only Bulk Bean Traders gets an accept.
+			assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).singleElement()
+				.satisfies(accept -> assertThat(accept.to()).isEqualTo("supplier-c.test"));
+		}
+		finally {
+			SUPPLIERS.brokenRevision = false;
+		}
+	}
+
+	@Test
+	void aPartialOfferWaitsForTheOwner() throws Exception {
+		// 400 kg: neither supplier fakes more than 320 kg of stock, so both offers are partial.
+		SUPPLIERS.stock = new BigDecimal("320");
+		// Room for 320 kg × 10.83 = 3465.60, so the order isn't blocked by the maximum.
+		policy("15.00", "500.00", "5000.00").andExpect(status().isOk());
+		try {
+			String needId = postNeed("400");
+			String pending = awaitRecommendation(needId,
+					r -> "PENDING".equals(JsonPath.read(r, "$.approval.status")));
+
+			assertThat(JsonPath.<List<String>>read(pending, "$.approval.reasons"))
+				.contains("The supplier offers 320 kg of the 400 kg you asked for.");
+			assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).isEmpty();
+		}
+		finally {
+			SUPPLIERS.stock = null;
+		}
 	}
 
 	@Test
@@ -300,6 +343,12 @@ class NegotiationIntegrationTest {
 
 		private final AgentJson json = new AgentJson();
 
+		/** When true, the roaster answers a counter with a revision dearer than its quote, which the café drops. */
+		volatile boolean brokenRevision;
+
+		/** When set, both suppliers offer at most this much (a partial offer for a larger need). */
+		volatile BigDecimal stock;
+
 		/** Every quote handed out, by message id. */
 		private final Map<UUID, Quoted> quotes = new ConcurrentHashMap<>();
 
@@ -326,7 +375,8 @@ class NegotiationIntegrationTest {
 			boolean roaster = in.to().equals("roaster.test");
 			AgentEnvelope out = switch (in.type()) {
 				case RFQ -> {
-					BigDecimal quantity = new BigDecimal(JsonPath.read(raw, "$.body.quantity").toString());
+					BigDecimal requested = new BigDecimal(JsonPath.read(raw, "$.body.quantity").toString());
+					BigDecimal quantity = stock == null ? requested : requested.min(stock);
 					Quoted quoted = new Quoted(in.messageId(), roaster ? "Roaster & Co" : "Bulk Bean Traders",
 							new BigDecimal(roaster ? "11.40" : "8.93"), quantity,
 							LocalDate.now().plusDays(roaster ? 2 : 9));
@@ -338,7 +388,8 @@ class NegotiationIntegrationTest {
 					if (!roaster) {
 						yield reply(in, AgentEnvelope.Type.REJECT, new RejectBody(in.messageId(), "Our price is firm."));
 					}
-					BigDecimal price = counter.unitPrice().amount().max(new BigDecimal("10.80"));
+					BigDecimal price = brokenRevision ? new BigDecimal("12.00")
+							: counter.unitPrice().amount().max(new BigDecimal("10.80"));
 					yield quote(in, new Quoted(old.rfqId(), old.name(), price, old.quantity(), old.delivery()),
 							counter.quoteId());
 				}

@@ -179,7 +179,7 @@ public class OrderDesk {
 
 	private PolicyDecision evaluate(NeedRow need, QuoteRow pick) {
 		ProposedOrder order = new ProposedOrder(pick.supplier().domain(), pick.unitPrice(), pick.quantity(),
-				pick.total(), pick.validUntil(), need.request().maxUnitPrice());
+				pick.unit(), need.request().quantity(), pick.total(), pick.validUntil(), need.request().maxUnitPrice());
 		return policyEngine.evaluate(order, policies.get(), clock.instant());
 	}
 

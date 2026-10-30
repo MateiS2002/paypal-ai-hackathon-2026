@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.tradedesk.desk.contract.Money;
+import com.tradedesk.desk.contract.Unit;
 import com.tradedesk.desk.policy.PolicyDecision.Finding;
 import com.tradedesk.desk.policy.PolicyDecision.Outcome;
 
@@ -24,15 +25,20 @@ import org.springframework.stereotype.Component;
  * <li>a quote in another currency than the policy's is {@code BLOCKED} (and nothing else is compared);</li>
  * <li>a total that isn't {@code quantity × unitPrice}, rounded half-up to the cent, is {@code BLOCKED};</li>
  * <li>a quote past its {@code validUntil} is {@code BLOCKED};</li>
- * <li>a unit price above {@code maxUnitPrice}, or above the need's own budget, is {@code BLOCKED};</li>
+ * <li>a unit price above {@code maxUnitPrice} (per kg; a price per lb is converted first), or above the need's own
+ * budget, is {@code BLOCKED};</li>
  * <li>a total above {@code maxOrderTotal} is {@code BLOCKED};</li>
  * <li>a total above {@code approvalAbove} {@code NEEDS_APPROVAL};</li>
+ * <li>an offer of less than the need's quantity {@code NEEDS_APPROVAL};</li>
  * <li>then any extra {@link PolicyRule} beans (S8).</li>
  * </ol>
  * Every rule that applies adds a reason, and the strictest outcome wins. "Above" is strict.
  */
 @Component
 public class PolicyEngine {
+
+	/** Exact, by definition of the international pound. */
+	static final BigDecimal KG_PER_LB = new BigDecimal("0.45359237");
 
 	private final List<PolicyRule> rules;
 
@@ -45,7 +51,7 @@ public class PolicyEngine {
 	public PolicyEngine(List<PolicyRule> extra) {
 		List<PolicyRule> all = new ArrayList<>(List.of(PolicyEngine::wrongTotal, PolicyEngine::expired,
 				PolicyEngine::unitPriceAboveMax, PolicyEngine::unitPriceAboveBudget, PolicyEngine::totalAboveMax,
-				PolicyEngine::totalAboveApproval));
+				PolicyEngine::totalAboveApproval, PolicyEngine::partial));
 		all.addAll(extra);
 		this.rules = List.copyOf(all);
 	}
@@ -85,9 +91,29 @@ public class PolicyEngine {
 				: blocked("The quote expired at " + order.validUntil() + ".");
 	}
 
+	/** {@code maxUnitPrice} is per kg; a price per lb is converted before it is compared. */
 	private static Optional<Finding> unitPriceAboveMax(ProposedOrder order, Policy policy, Instant now) {
-		return above(order.unitPrice(), policy.maxUnitPrice()) ? blocked("The unit price " + text(order.unitPrice())
-				+ " is above your maximum of " + text(policy.maxUnitPrice()) + ".") : Optional.empty();
+		BigDecimal perKg = order.unit() == Unit.LB
+				? order.unitPrice().amount().divide(KG_PER_LB, 4, RoundingMode.HALF_UP) : order.unitPrice().amount();
+		if (perKg.compareTo(policy.maxUnitPrice().amount()) <= 0) {
+			return Optional.empty();
+		}
+		String price = order.unit() == Unit.LB ? text(order.unitPrice()) + " per lb ("
+				+ perKg.setScale(2, RoundingMode.HALF_UP).toPlainString() + " " + policy.currency() + " per kg)"
+				: text(order.unitPrice()) + " per kg";
+		return blocked("The unit price " + price + " is above your maximum of " + text(policy.maxUnitPrice())
+				+ " per kg.");
+	}
+
+	/**
+	 * {@code maxUnitPrice} (per kg) in {@code unit}: the most a counter may target. Rounded down, so a target at this
+	 * limit never fails the rule above.
+	 */
+	public static Money maxUnitPrice(Policy policy, Unit unit) {
+		Money perKg = policy.maxUnitPrice();
+		return unit == Unit.LB
+				? new Money(perKg.amount().multiply(KG_PER_LB).setScale(2, RoundingMode.DOWN), perKg.currency())
+				: perKg;
 	}
 
 	private static Optional<Finding> unitPriceAboveBudget(ProposedOrder order, Policy policy, Instant now) {
@@ -112,6 +138,17 @@ public class PolicyEngine {
 				? Optional.of(new Finding(Outcome.NEEDS_APPROVAL, "The total " + text(order.total())
 						+ " is above your approval limit of " + text(policy.approvalAbove()) + "."))
 				: Optional.empty();
+	}
+
+	/** The owner agrees to a smaller quantity before it is ordered, however cheap. */
+	private static Optional<Finding> partial(ProposedOrder order, Policy policy, Instant now) {
+		if (order.quantity().compareTo(order.requestedQuantity()) >= 0) {
+			return Optional.empty();
+		}
+		String unit = " " + order.unit().wireName();
+		return Optional.of(new Finding(Outcome.NEEDS_APPROVAL, "The supplier offers "
+				+ order.quantity().stripTrailingZeros().toPlainString() + unit + " of the "
+				+ order.requestedQuantity().stripTrailingZeros().toPlainString() + unit + " you asked for."));
 	}
 
 	private static boolean above(Money amount, Money limit) {

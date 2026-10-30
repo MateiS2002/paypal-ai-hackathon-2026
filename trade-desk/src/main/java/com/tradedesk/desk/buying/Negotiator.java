@@ -247,8 +247,8 @@ public class Negotiator {
 	}
 
 	/**
-	 * Java's pick: the quote S2's ranking puts first among those still open. The reason is written for it, and the
-	 * policy engine decides what happens next.
+	 * Java's pick: the quote S2's ranking puts first among those still open, leaving out any whose counter got no answer. The reason is
+	 * written for it, and the policy engine decides what happens next.
 	 */
 	void finish(UUID needId) {
 		NeedRow need = needs.find(needId).orElseThrow();
@@ -266,8 +266,11 @@ public class Negotiator {
 			unanswered.forEach(q -> needs.counterAnswered(q.id(), QuoteRow.Counter.Outcome.NO_ANSWER));
 			needService.publishQuotes(needId);
 		}
-		List<QuoteRow> ranked = QuoteRanking.rank(open(needService.quotes(needId), clock.instant()),
-				need.request().priority());
+		// A quote whose counter got no answer (or a dropped one) may have been replaced by the supplier: never pick it.
+		List<QuoteRow> pickable = open(needService.quotes(needId), clock.instant()).stream()
+			.filter(q -> q.counter() == null || q.counter().outcome() != QuoteRow.Counter.Outcome.NO_ANSWER)
+			.toList();
+		List<QuoteRow> ranked = QuoteRanking.rank(pickable, need.request().priority());
 		if (ranked.isEmpty()) {
 			negotiations.noOffer(needId);
 			log.info("Need {}: no open quote to pick", needId);

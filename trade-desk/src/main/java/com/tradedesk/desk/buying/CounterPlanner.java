@@ -16,6 +16,7 @@ import com.tradedesk.desk.llm.LlmNotConfiguredException;
 import com.tradedesk.desk.need.PurchaseRequest;
 import com.tradedesk.desk.need.QuoteRow;
 import com.tradedesk.desk.policy.Policy;
+import com.tradedesk.desk.policy.PolicyEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
@@ -94,7 +95,8 @@ public class CounterPlanner {
 			if (wanted == null) {
 				wanted = price.multiply(BigDecimal.ONE.subtract(DEFAULT_ASK));
 			}
-			BigDecimal target = clamp(wanted, quote.unitPrice(), policy.maxUnitPrice(), request.maxUnitPrice());
+			BigDecimal target = clamp(wanted, quote.unitPrice(), PolicyEngine.maxUnitPrice(policy, quote.unit()),
+					request.maxUnitPrice());
 			if (target.signum() > 0 && target.compareTo(price) < 0) {
 				targets.put(quote.id(), target);
 			}

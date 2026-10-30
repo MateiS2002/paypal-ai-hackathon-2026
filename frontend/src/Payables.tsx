@@ -41,6 +41,9 @@ const columns: ColDef<PayableRow>[] = [
     comparator: (_a, _b, nodeA, nodeB) => Number(nodeA.data?.total.amount) - Number(nodeB.data?.total.amount),
   },
   { field: 'status', headerName: 'Status', maxWidth: 170, cellRenderer: StatusCell, enableCellChangeFlash: true },
+  // The café can't read the supplier's PayPal invoice, so the owner compares this id and the agreed total with
+  // PayPal's page before paying.
+  { field: 'paypalInvoiceId', headerName: 'PayPal invoice', maxWidth: 220, tooltipField: 'paypalInvoiceId' },
   { colId: 'pay', headerName: 'PayPal', maxWidth: 160, cellRenderer: PayCell, sortable: false, filter: false },
   {
     field: 'updatedAt',

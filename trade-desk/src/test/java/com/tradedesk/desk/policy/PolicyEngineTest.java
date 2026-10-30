@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.tradedesk.desk.contract.Money;
+import com.tradedesk.desk.contract.Unit;
 import com.tradedesk.desk.policy.PolicyDecision.Outcome;
 import org.junit.jupiter.api.Test;
 
@@ -27,12 +28,16 @@ class PolicyEngineTest {
 
 	private final PolicyEngine engine = new PolicyEngine();
 
-	/** {@code quantity} kg at {@code price}, total computed the way the café computes it. */
+	/** A full offer of {@code quantity} kg at {@code price}, total computed the way the café computes it. */
 	static ProposedOrder order(String quantity, String price) {
+		return order(quantity, quantity, price, Unit.KG, null);
+	}
+
+	static ProposedOrder order(String quantity, String requested, String price, Unit unit, Money budget) {
 		BigDecimal q = new BigDecimal(quantity);
 		BigDecimal p = new BigDecimal(price);
-		return new ProposedOrder("roaster.test", usd(price), q, usd(q.multiply(p).setScale(2, RoundingMode.HALF_UP)
-			.toPlainString()), LATER, null);
+		return new ProposedOrder("roaster.test", usd(price), q, unit, new BigDecimal(requested),
+				usd(q.multiply(p).setScale(2, RoundingMode.HALF_UP).toPlainString()), LATER, budget);
 	}
 
 	static Money usd(String amount) {
@@ -67,7 +72,33 @@ class PolicyEngineTest {
 		PolicyDecision decision = engine.evaluate(order("10", "15.01"), POLICY, NOW);
 
 		assertThat(decision.outcome()).isEqualTo(Outcome.BLOCKED);
-		assertThat(decision.reasons()).containsExactly("The unit price 15.01 USD is above your maximum of 15.00 USD.");
+		assertThat(decision.reasons())
+			.containsExactly("The unit price 15.01 USD per kg is above your maximum of 15.00 USD per kg.");
+	}
+
+	@Test
+	void aPricePerPoundIsComparedPerKilogram() {
+		// 6.80 USD/lb is 14.99 USD/kg: allowed. 6.81 USD/lb is 15.01 USD/kg: blocked.
+		assertThat(engine.evaluate(order("10", "10", "6.80", Unit.LB, null), POLICY, NOW).outcome())
+			.isEqualTo(Outcome.AUTO_ACCEPT);
+		PolicyDecision decision = engine.evaluate(order("10", "10", "6.81", Unit.LB, null), POLICY, NOW);
+
+		assertThat(decision.outcome()).isEqualTo(Outcome.BLOCKED);
+		assertThat(decision.reasons()).containsExactly(
+				"The unit price 6.81 USD per lb (15.01 USD per kg) is above your maximum of 15.00 USD per kg.");
+		// A counter target capped at the per-lb limit never trips the rule.
+		Money capped = PolicyEngine.maxUnitPrice(POLICY, Unit.LB);
+		assertThat(capped.amount()).isEqualByComparingTo("6.80");
+		assertThat(engine.evaluate(order("10", "10", capped.amount().toPlainString(), Unit.LB, null), POLICY, NOW)
+			.outcome()).isEqualTo(Outcome.AUTO_ACCEPT);
+	}
+
+	@Test
+	void aPartialOfferAlwaysWaitsForTheOwner() {
+		PolicyDecision decision = engine.evaluate(order("20", "50", "11.20", Unit.KG, null), POLICY, NOW);
+
+		assertThat(decision.outcome()).isEqualTo(Outcome.NEEDS_APPROVAL);
+		assertThat(decision.reasons()).containsExactly("The supplier offers 20 kg of the 50 kg you asked for.");
 	}
 
 	@Test
@@ -76,7 +107,8 @@ class PolicyEngineTest {
 		PolicyDecision decision = engine.evaluate(order("50", "15.40"), POLICY, NOW);
 
 		assertThat(decision.outcome()).isEqualTo(Outcome.BLOCKED);
-		assertThat(decision.reasons()).containsExactly("The unit price 15.40 USD is above your maximum of 15.00 USD.",
+		assertThat(decision.reasons()).containsExactly(
+				"The unit price 15.40 USD per kg is above your maximum of 15.00 USD per kg.",
 				"The total 770.00 USD is above your approval limit of 500.00 USD.");
 	}
 
@@ -90,11 +122,7 @@ class PolicyEngineTest {
 
 	@Test
 	void aPriceAboveTheNeedsOwnBudgetIsBlocked() {
-		ProposedOrder order = order("10", "12.00");
-		ProposedOrder withBudget = new ProposedOrder(order.supplierDomain(), order.unitPrice(), order.quantity(),
-				order.total(), order.validUntil(), usd("11.50"));
-
-		PolicyDecision decision = engine.evaluate(withBudget, POLICY, NOW);
+		PolicyDecision decision = engine.evaluate(order("10", "10", "12.00", Unit.KG, usd("11.50")), POLICY, NOW);
 
 		assertThat(decision.outcome()).isEqualTo(Outcome.BLOCKED);
 		assertThat(decision.reasons()).containsExactly("The unit price 12.00 USD is above this need's budget of 11.50 USD.");
@@ -111,7 +139,7 @@ class PolicyEngineTest {
 	@Test
 	void anotherCurrencyIsBlockedWithoutComparingAmounts() {
 		ProposedOrder euros = new ProposedOrder("roaster.test", new Money(new BigDecimal("1.00"), "EUR"),
-				BigDecimal.ONE, new Money(new BigDecimal("1.00"), "EUR"), LATER, null);
+				BigDecimal.ONE, Unit.KG, BigDecimal.ONE, new Money(new BigDecimal("1.00"), "EUR"), LATER, null);
 
 		PolicyDecision decision = engine.evaluate(euros, POLICY, NOW);
 
@@ -123,7 +151,7 @@ class PolicyEngineTest {
 	void aTotalThatIsntQuantityTimesPriceIsBlocked() {
 		ProposedOrder order = order("50", "10.00");
 		ProposedOrder cheaper = new ProposedOrder(order.supplierDomain(), order.unitPrice(), order.quantity(),
-				usd("400.00"), order.validUntil(), null);
+				order.unit(), order.requestedQuantity(), usd("400.00"), order.validUntil(), null);
 
 		assertThat(engine.evaluate(cheaper, POLICY, NOW).outcome()).isEqualTo(Outcome.BLOCKED);
 	}
