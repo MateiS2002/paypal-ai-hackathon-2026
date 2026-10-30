@@ -286,12 +286,14 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 
 `POST /api/approvals/{id}` with `{"decision": "APPROVE"}` or `{"decision": "REJECT"}`.
 
+`APPROVE` also retries a failed order: on an `APPROVED` or `AUTO_APPROVED` approval whose `order` is `FAILED`, the café asks the policy engine again and, unless it says `BLOCKED`, sends the same `accept` again (same `messageId`, so a supplier that already invoiced it returns that invoice). The UI shows this as "Try again".
+
 | Status | When |
 | --- | --- |
 | `200` | Decided. The body is the approval. On `APPROVE` the policy engine checks the order again with the current policy and time first; `order` is then `SENDING` and the result arrives as `recommendation.updated` and `payable.updated` events. |
 | `400` | A missing or unknown `decision`. |
 | `404` | Unknown approval. |
-| `409` | Not `PENDING` (already decided, or a double tap), or on `APPROVE` the policy engine now says `BLOCKED` (for example the quote expired or the limits changed). The approval is then stored as `BLOCKED` with the new reasons, and nothing is sent. |
+| `409` | Not `PENDING` (already decided, or a double tap) and not a failed order to retry, or on `APPROVE` the policy engine now says `BLOCKED` (for example the quote expired or the limits changed). A `PENDING` approval is then stored as `BLOCKED` with the new reasons; a failed order stays `FAILED`. Nothing is sent. |
 
 ### Payable row
 
