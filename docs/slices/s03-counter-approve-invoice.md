@@ -4,7 +4,7 @@
 
 ## Goal
 
-Close the loop from need to money. The buyer agent sends one counter-offer to the top 2 or 3 quotes, recommends a winner with a one-line reason, the Java policy engine decides whether the owner must approve, and on accept the supplier desk creates and sends a PayPal invoice through S1's `InvoiceService`. The café sees it under "Invoices to pay".
+Close the loop from need to money. The buyer agent sends one counter-offer to each of the top 3 quotes, recommends a winner with a one-line reason, the Java policy engine decides whether the owner must approve, and on accept the supplier desk creates and sends a PayPal invoice through S1's `InvoiceService`. The café sees it under "Invoices to pay".
 
 Together, S1 + S2 + S3 are the "vertical slice" in architecture.md's working order.
 
@@ -28,7 +28,7 @@ Multiple counter rounds, partial deliveries, the malicious supplier (S8).
 
 ## Contracts
 
-Agent message types added: `counter` (`{ "quoteId", "unitPrice": Money }`), `quote` (revised), `accept` (`{ "quoteId" }`), reply `invoice` (`{ "paypalInvoiceId", "payerViewUrl", "total": Money, "status" }`), `reject`, and `invoice.status` from supplier to buyer (`{ "paypalInvoiceId", "status", "updatedAt" }`). `status` uses S1's enum. The café ignores an `invoice.status` for an invoice id it doesn't hold or from a desk that isn't that invoice's supplier. Until S5 lands, `from` is only claimed, not proven, so `invoice.status` is unauthenticated in S3 builds; S5's `invoice:notify` scope and envelope signature close that gap. Mark the handler `TODO S5`.
+Agent message types added: `counter` (`{ "quoteId", "unitPrice": Money }`), `quote` (revised), `accept` (`{ "quoteId", "billTo": { "name", "email" } }`), reply `invoice` (`{ "paypalInvoiceId", "payerViewUrl", "total": Money, "status" }`), `reject`, and `invoice.status` from supplier to buyer (`{ "paypalInvoiceId", "status", "updatedAt" }`). `status` uses S1's enum. The café ignores an `invoice.status` for an invoice id it doesn't hold or from a desk that isn't that invoice's supplier. Until S5 lands, `from` is only claimed, not proven, so `invoice.status` is unauthenticated in S3 builds; S5's `invoice:notify` scope and envelope signature close that gap. Mark the handler `TODO S5`.
 
 Desk API (café): `POST /api/needs/{id}/counter`, `GET /api/needs/{id}/recommendation`, `POST /api/approvals/{id}` with `{ "decision": "APPROVE" | "REJECT" }`, `GET /api/payables`, `GET/PUT /api/policy`.
 
