@@ -148,7 +148,7 @@ The supplier re-checks, in Java, that the quote is its own latest quote for this
 | Field | Type | Rule |
 | --- | --- | --- |
 | `paypalInvoiceId` | string | PayPal's invoice id, 1 to 100 characters of letters, digits and `-`. |
-| `payerViewUrl` | URL | PayPal's hosted pay page. Must be `https://www.sandbox.paypal.com/...` and name `paypalInvoiceId` exactly, as the URL fragment (`/invoice/p/#INV2-...`) or the last path segment; the café refuses any other link, so a supplier can't send the owner to a look-alike page or another invoice's page. |
+| `payerViewUrl` | URL | PayPal's hosted pay page. Must be `https://www.sandbox.paypal.com/...` and name `paypalInvoiceId` exactly, as the URL fragment of `/invoice/p/` (`/invoice/p/#INV2-...`) or the last segment of `/invoice/payerView/details/`, and no other path; the café refuses any other link, so a supplier can't send the owner to a look-alike page or another invoice's page. |
 | `total` | Money | Must equal the accepted quote's `quantity × unitPrice`, rounded half-up to the cent, in the quote's currency. The café refuses an invoice with any other total. |
 | `status` | string | S1's status enum (`DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, `REFUNDED`, `AWAITING_APPROVAL`, `OTHER`); `SENT` when the invoice has just been sent. |
 
