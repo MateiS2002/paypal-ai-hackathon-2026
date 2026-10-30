@@ -129,6 +129,8 @@ services:
       PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
       # Seeds the demo customer Bean There, who receives and pays the roaster's invoices.
       PAYPAL_SANDBOX_BUYER_EMAIL: ${PAYPAL_SANDBOX_BUYER_EMAIL:-}
+      # Buyers this desk may send invoice.status to after an accept (S3). S4 replaces this with a registry lookup.
+      DESK_BUYERS: cafe.test=http://cafe:8080
     ports:
       - "127.0.0.1:8082:8080"
 
@@ -147,6 +149,10 @@ services:
       DESK_TIME_ZONE: America/Los_Angeles
       DESK_PERSONA: fast-pricey
       DESK_SIMULATED: "true"
+      # Every SIMULATED supplier invoices through the one shared SIMULATED sandbox merchant (S3).
+      PAYPAL_CLIENT_ID: ${PAYPAL_SIM_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_SIM_CLIENT_SECRET:-}
+      DESK_BUYERS: cafe.test=http://cafe:8080
     ports:
       - "127.0.0.1:8083:8080"
 
@@ -163,6 +169,10 @@ services:
       DESK_TIME_ZONE: America/Los_Angeles
       DESK_PERSONA: cheap-slow
       DESK_SIMULATED: "true"
+      # Every SIMULATED supplier invoices through the one shared SIMULATED sandbox merchant (S3).
+      PAYPAL_CLIENT_ID: ${PAYPAL_SIM_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_SIM_CLIENT_SECRET:-}
+      DESK_BUYERS: cafe.test=http://cafe:8080
     ports:
       - "127.0.0.1:8084:8080"
 
@@ -179,6 +189,10 @@ services:
       DESK_TIME_ZONE: America/Los_Angeles
       DESK_PERSONA: low-stock
       DESK_SIMULATED: "true"
+      # Every SIMULATED supplier invoices through the one shared SIMULATED sandbox merchant (S3).
+      PAYPAL_CLIENT_ID: ${PAYPAL_SIM_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_SIM_CLIENT_SECRET:-}
+      DESK_BUYERS: cafe.test=http://cafe:8080
     ports:
       - "127.0.0.1:8085:8080"
 

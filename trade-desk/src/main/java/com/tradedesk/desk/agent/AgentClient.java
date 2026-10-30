@@ -19,17 +19,36 @@ public class AgentClient {
 	/** Long enough for the slowest SIMULATED persona plus its LLM note, short enough to fill the grid in ~10 s. */
 	static final Duration READ_TIMEOUT = Duration.ofSeconds(8);
 
+	/** An accept waits for the supplier to create and send a PayPal invoice, which takes a few sandbox calls. */
+	static final Duration SLOW_READ_TIMEOUT = Duration.ofSeconds(30);
+
 	private final RestClient http;
 
+	private final RestClient slowHttp;
+
 	public AgentClient() {
+		this.http = client(READ_TIMEOUT);
+		this.slowHttp = client(SLOW_READ_TIMEOUT);
+	}
+
+	private static RestClient client(Duration readTimeout) {
 		HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
 		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(client);
-		requestFactory.setReadTimeout(READ_TIMEOUT);
-		this.http = RestClient.builder().requestFactory(requestFactory).build();
+		requestFactory.setReadTimeout(readTimeout);
+		return RestClient.builder().requestFactory(requestFactory).build();
 	}
 
 	/** Never throws for a bad peer: a timeout, refusal or error status comes back as a failed {@link Reply}. */
 	public Reply send(PeerDirectory.Peer peer, String envelope) {
+		return send(http, peer, envelope);
+	}
+
+	/** {@link #send} with {@link #SLOW_READ_TIMEOUT}, for messages whose reply waits on PayPal ({@code accept}). */
+	public Reply sendSlow(PeerDirectory.Peer peer, String envelope) {
+		return send(slowHttp, peer, envelope);
+	}
+
+	private static Reply send(RestClient http, PeerDirectory.Peer peer, String envelope) {
 		try {
 			return http.post()
 				.uri(peer.baseUrl().resolve(peer.baseUrl().getPath() + "/agent/messages"))

@@ -69,16 +69,23 @@ public class NeedRepository {
 		jdbc.sql("update need set status = 'COMPLETE' where id = :id").param("id", id).update();
 	}
 
-	/** Stores a checked quote; a second quote from the same supplier for the same need is ignored. */
-	public boolean insertQuote(UUID needId, String supplierDomain, QuoteBody quote, String note, String raw) {
+	/**
+	 * Stores a checked quote; a second quote from the same supplier for the same need is ignored.
+	 * @param quoteMessageId the quote envelope's {@code messageId}, which a counter or an accept names (S3)
+	 */
+	public boolean insertQuote(UUID needId, String supplierDomain, UUID quoteMessageId, QuoteBody quote, String note,
+			String raw) {
 		return jdbc.sql("""
 				insert into quote (id, need_id, supplier_domain, supplier_name, simulated, unit_price_minor, currency,
-				                   quantity, available_quantity, unit, delivery_date, valid_until, note, raw_message)
+				                   quantity, available_quantity, unit, delivery_date, valid_until, note, raw_message,
+				                   quote_message_id, rfq_message_id)
 				values (:id, :needId, :domain, :name, :simulated, :price, :currency, :quantity, :available, :unit,
-				        :deliveryDate, :validUntil, :note, :raw)
+				        :deliveryDate, :validUntil, :note, :raw, :quoteMessageId, :rfqMessageId)
 				on conflict (need_id, supplier_domain) do nothing
 				""")
 			.param("id", UUID.randomUUID())
+			.param("quoteMessageId", quoteMessageId)
+			.param("rfqMessageId", quote.rfqId())
 			.param("needId", needId)
 			.param("domain", supplierDomain)
 			.param("name", quote.supplierName().strip())
@@ -97,20 +104,82 @@ public class NeedRepository {
 
 	/** Unranked; {@link QuoteRanking} orders them. */
 	public List<QuoteRow> quotes(UUID needId, BigDecimal requested) {
-		return jdbc.sql("select * from quote where need_id = :needId").param("needId", needId).query((rs, n) -> {
-			BigDecimal unitPrice = InvoiceTotals.fromMinor(rs.getLong("unit_price_minor"));
-			BigDecimal quantity = rs.getBigDecimal("quantity");
-			String currency = rs.getString("currency");
-			return new QuoteRow(rs.getObject("id", UUID.class), needId, 0,
-					new QuoteRow.Supplier(rs.getString("supplier_domain"), rs.getString("supplier_name"),
-							rs.getBoolean("simulated")),
-					new Money(unitPrice, currency), quantity, rs.getBigDecimal("available_quantity"),
-					Unit.fromWire(rs.getString("unit")),
-					new Money(quantity.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP), currency),
-					rs.getObject("delivery_date", java.time.LocalDate.class),
-					rs.getTimestamp("valid_until").toInstant(), quantity.compareTo(requested) < 0,
-					rs.getString("note"), rs.getTimestamp("received_at").toInstant());
-		}).list();
+		return jdbc.sql("select * from quote where need_id = :needId")
+			.param("needId", needId)
+			.query((rs, n) -> quoteRow(rs, requested))
+			.list();
+	}
+
+	/** The ids a counter or an accept needs for one of this desk's quotes (S3). */
+	public Optional<QuoteRef> quoteRef(UUID quoteId) {
+		return jdbc.sql("select id, need_id, supplier_domain, quote_message_id, rfq_message_id from quote where id = :id")
+			.param("id", quoteId)
+			.query((rs, n) -> new QuoteRef(rs.getObject("id", UUID.class), rs.getObject("need_id", UUID.class),
+					rs.getString("supplier_domain"), rs.getObject("quote_message_id", UUID.class),
+					rs.getObject("rfq_message_id", UUID.class)))
+			.optional();
+	}
+
+	/** Records that a counter is going out (S3). False if this quote was already countered: one counter per quote. */
+	public boolean startCounter(UUID quoteId, BigDecimal target) {
+		return jdbc.sql("""
+				update quote set counter_unit_price_minor = :target, previous_unit_price_minor = unit_price_minor,
+				                 counter_outcome = 'PENDING'
+				 where id = :id and counter_outcome is null
+				""")
+			.param("target", InvoiceTotals.toMinor(target))
+			.param("id", quoteId)
+			.update() == 1;
+	}
+
+	/**
+	 * Replaces the quote with the supplier's checked revision: from now on its price, stock, expiry, note and message id
+	 * are the revised quote's, and an accept names the revised quote.
+	 */
+	public void revise(UUID quoteId, UUID revisedMessageId, QuoteBody revised, String note,
+			QuoteRow.Counter.Outcome outcome) {
+		jdbc.sql("""
+				update quote
+				   set unit_price_minor = :price, available_quantity = :available, valid_until = :validUntil,
+				       note = :note, quote_message_id = :messageId, counter_outcome = :outcome
+				 where id = :id and counter_outcome = 'PENDING'
+				""")
+			.param("price", InvoiceTotals.toMinor(revised.unitPrice().amount()))
+			.param("available", revised.availableQuantity())
+			.param("validUntil", Timestamp.from(revised.validUntil()))
+			.param("note", note)
+			.param("messageId", revisedMessageId)
+			.param("outcome", outcome.name())
+			.param("id", quoteId)
+			.update();
+	}
+
+	/** Ends a pending counter without a new price: the quote stands as it was. */
+	public void counterAnswered(UUID quoteId, QuoteRow.Counter.Outcome outcome) {
+		jdbc.sql("update quote set counter_outcome = :outcome where id = :id and counter_outcome = 'PENDING'")
+			.param("outcome", outcome.name())
+			.param("id", quoteId)
+			.update();
+	}
+
+	private static QuoteRow quoteRow(ResultSet rs, BigDecimal requested) throws SQLException {
+		BigDecimal unitPrice = InvoiceTotals.fromMinor(rs.getLong("unit_price_minor"));
+		BigDecimal quantity = rs.getBigDecimal("quantity");
+		String currency = rs.getString("currency");
+		String outcome = rs.getString("counter_outcome");
+		QuoteRow.Counter counter = outcome == null ? null
+				: new QuoteRow.Counter(new Money(InvoiceTotals.fromMinor(rs.getLong("counter_unit_price_minor")), currency),
+						new Money(InvoiceTotals.fromMinor(rs.getLong("previous_unit_price_minor")), currency),
+						QuoteRow.Counter.Outcome.valueOf(outcome));
+		return new QuoteRow(rs.getObject("id", UUID.class), rs.getObject("need_id", UUID.class), 0,
+				new QuoteRow.Supplier(rs.getString("supplier_domain"), rs.getString("supplier_name"),
+						rs.getBoolean("simulated")),
+				new Money(unitPrice, currency), quantity, rs.getBigDecimal("available_quantity"),
+				Unit.fromWire(rs.getString("unit")),
+				new Money(quantity.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP), currency),
+				rs.getObject("delivery_date", java.time.LocalDate.class), rs.getTimestamp("valid_until").toInstant(),
+				quantity.compareTo(requested) < 0, rs.getString("note"), rs.getTimestamp("received_at").toInstant(),
+				counter);
 	}
 
 	private static final String SELECT_NEED = """
@@ -125,6 +194,14 @@ public class NeedRepository {
 	}
 
 	public record Stored(UUID id, String requestHash) {
+	}
+
+	/**
+	 * @param quoteMessageId the supplier's message id for the quote as it stands (the revised one after a counter); null
+	 *     only for a quote stored before S3 whose id couldn't be read back
+	 * @param rfqMessageId the RFQ the quote answered
+	 */
+	public record QuoteRef(UUID id, UUID needId, String supplierDomain, UUID quoteMessageId, UUID rfqMessageId) {
 	}
 
 }

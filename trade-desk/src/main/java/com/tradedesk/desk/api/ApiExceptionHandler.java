@@ -1,6 +1,9 @@
 package com.tradedesk.desk.api;
 
 import com.tradedesk.desk.agent.InvalidAgentMessageException;
+import com.tradedesk.desk.buying.ApprovalNotFoundException;
+import com.tradedesk.desk.buying.BuyingController;
+import com.tradedesk.desk.buying.NegotiationConflictException;
 import com.tradedesk.desk.invoice.IdempotencyConflictException;
 import com.tradedesk.desk.invoice.InvalidInvoiceException;
 import com.tradedesk.desk.llm.LlmException;
@@ -10,6 +13,7 @@ import com.tradedesk.desk.need.NeedKeyConflictException;
 import com.tradedesk.desk.need.NeedNotFoundException;
 import com.tradedesk.desk.paypal.PayPalException;
 import com.tradedesk.desk.paypal.PayPalNotConfiguredException;
+import com.tradedesk.desk.policy.InvalidPolicyException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -44,6 +48,26 @@ public class ApiExceptionHandler {
 	@ExceptionHandler
 	ProblemDetail needNotFound(NeedNotFoundException ex) {
 		return problem(HttpStatus.NOT_FOUND, "Need not found", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail negotiationConflict(NegotiationConflictException ex) {
+		return problem(HttpStatus.CONFLICT, "Not possible now", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail approvalNotFound(ApprovalNotFoundException ex) {
+		return problem(HttpStatus.NOT_FOUND, "Approval not found", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail invalidDecision(BuyingController.InvalidDecisionException ex) {
+		return problem(HttpStatus.BAD_REQUEST, "Invalid request", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail invalidPolicy(InvalidPolicyException ex) {
+		return problem(HttpStatus.BAD_REQUEST, "Invalid policy", ex.getMessage());
 	}
 
 	@ExceptionHandler

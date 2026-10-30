@@ -1,26 +1,27 @@
 package com.tradedesk.desk.supplier;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Locale;
 
 /**
  * Which seeded catalogue a supplier desk sells from ({@code DESK_PERSONA}), and how the SIMULATED ones behave.
  * Prices, stock and lead times live in {@code catalogue/<persona>.json}; the persona only adds a reply delay so
- * quotes visibly arrive one at a time, and a tone for the LLM's note.
+ * quotes visibly arrive one at a time, a tone for the LLM's note, and how far it moves on a counter (S3).
  */
 public enum Persona {
 
-	/** The real roaster. Answers at once. */
-	ROASTER("roaster", false, Duration.ZERO, Duration.ZERO, "friendly specialty roaster"),
+	/** The real roaster. Answers at once; gives up to 6% on a counter. */
+	ROASTER("roaster", false, Duration.ZERO, Duration.ZERO, "friendly specialty roaster", "0.06"),
 
-	/** SIMULATED: delivers fast, charges more. */
-	FAST_PRICEY("fast-pricey", true, Duration.ofMillis(500), Duration.ofMillis(1500), "brisk express importer"),
+	/** SIMULATED: delivers fast, charges more, and never moves on price. */
+	FAST_PRICEY("fast-pricey", true, Duration.ofMillis(500), Duration.ofMillis(1500), "brisk express importer", "0"),
 
-	/** SIMULATED: cheapest, slowest. */
-	CHEAP_SLOW("cheap-slow", true, Duration.ofMillis(3000), Duration.ofMillis(4500), "laid-back bulk trader"),
+	/** SIMULATED: cheapest, slowest; already near its floor, so gives up to 3%. */
+	CHEAP_SLOW("cheap-slow", true, Duration.ofMillis(3000), Duration.ofMillis(4500), "laid-back bulk trader", "0.03"),
 
-	/** SIMULATED: small lots, often less than asked. */
-	LOW_STOCK("low-stock", true, Duration.ofMillis(1800), Duration.ofMillis(2800), "small-lot importer");
+	/** SIMULATED: small lots, often less than asked; gives up to 4%. */
+	LOW_STOCK("low-stock", true, Duration.ofMillis(1800), Duration.ofMillis(2800), "small-lot importer", "0.04");
 
 	private final String wireName;
 
@@ -32,12 +33,16 @@ public enum Persona {
 
 	private final String tone;
 
-	Persona(String wireName, boolean simulated, Duration minDelay, Duration maxDelay, String tone) {
+	private final BigDecimal maxConcession;
+
+	Persona(String wireName, boolean simulated, Duration minDelay, Duration maxDelay, String tone,
+			String maxConcession) {
 		this.wireName = wireName;
 		this.simulated = simulated;
 		this.minDelay = minDelay;
 		this.maxDelay = maxDelay;
 		this.tone = tone;
+		this.maxConcession = new BigDecimal(maxConcession);
 	}
 
 	public String wireName() {
@@ -59,6 +64,11 @@ public enum Persona {
 
 	public String tone() {
 		return tone;
+	}
+
+	/** The most this desk takes off its quoted price in one counter, as a fraction. The floor still applies. */
+	public BigDecimal maxConcession() {
+		return maxConcession;
 	}
 
 	/**

@@ -35,6 +35,9 @@ class RfqHandlerTest {
 
 	private final StubLlm llm = new StubLlm();
 
+	/** The quotes the handler recorded as sent (S3 checks counters and accepts against them). */
+	private final List<SupplierQuote> sent = new java.util.ArrayList<>();
+
 	private RfqHandler handler(List<CatalogueItem> items) {
 		CatalogueRepository catalogue = new CatalogueRepository(null) {
 			@Override
@@ -42,7 +45,13 @@ class RfqHandlerTest {
 				return items;
 			}
 		};
-		return new RfqHandler(catalogue, new QuoteNoteWriter(llm, ROASTER), json, ROASTER, NOW);
+		SupplierQuoteRepository quotes = new SupplierQuoteRepository(null) {
+			@Override
+			public void insert(SupplierQuote quote) {
+				sent.add(quote);
+			}
+		};
+		return new RfqHandler(catalogue, quotes, new QuoteNoteWriter(llm, ROASTER), json, ROASTER, NOW);
 	}
 
 	private AgentEnvelope rfq(String quantity) {
@@ -75,6 +84,15 @@ class RfqHandlerTest {
 		assertThat(quote.rfqId()).isEqualTo(rfq.messageId());
 		assertThat(reply.to()).isEqualTo("cafe.test");
 		assertThat(reply.conversationId()).isEqualTo(rfq.conversationId());
+		// S3: what was sent is recorded under the reply's message id, so a counter or accept is checked against it.
+		assertThat(sent).singleElement().satisfies(recorded -> {
+			assertThat(recorded.messageId()).isEqualTo(reply.messageId());
+			assertThat(recorded.buyerDomain()).isEqualTo("cafe.test");
+			assertThat(recorded.sku()).isEqualTo(QuotePricerTest.SANTOS.sku());
+			assertThat(recorded.unitPrice()).isEqualByComparingTo("11.04");
+			assertThat(recorded.status()).isEqualTo(SupplierQuote.Status.OPEN);
+		});
+		assertThat(quote.revises()).isNull();
 	}
 
 	@Test

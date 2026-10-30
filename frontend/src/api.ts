@@ -186,6 +186,14 @@ export type QuoteRow = {
   partial: boolean
   note: string
   receivedAt: string
+  // S3: null until the counter round reaches this quote. After the answer, the price fields are the revised quote's.
+  counter: QuoteCounter | null
+}
+
+export type QuoteCounter = {
+  targetUnitPrice: Money
+  previousUnitPrice: Money
+  outcome: 'PENDING' | 'MET' | 'PARTLY_MET' | 'HELD' | 'NO_ANSWER'
 }
 
 async function sendJson<T>(desk: DeskId, method: string, path: string, body: unknown, fallback: string,
@@ -213,6 +221,73 @@ export const listNeeds = (desk: DeskId) => getJson<NeedRow[]>(desk, '/needs')
 
 /** Ranked best first by the desk. */
 export const listQuotes = (desk: DeskId, needId: string) => getJson<QuoteRow[]>(desk, `/needs/${needId}/quotes`)
+
+// Counter, approve, invoice (S3). Java picks the winner and the policy engine decides; the UI only shows it and
+// sends the owner's tap.
+
+export type Supplier = { domain: string; name: string; simulated: boolean }
+
+export type Approval = {
+  id: string
+  needId: string
+  quoteId: string
+  supplier: Supplier
+  total: Money
+  decision: 'AUTO_ACCEPT' | 'NEEDS_APPROVAL' | 'BLOCKED'
+  reasons: string[]
+  status: 'AUTO_APPROVED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'BLOCKED'
+  order: 'NOT_SENT' | 'SENDING' | 'INVOICED' | 'REFUSED' | 'FAILED'
+  orderDetail: string | null
+  createdAt: string
+  decidedAt: string | null
+}
+
+export type Recommendation = {
+  needId: string
+  stage: 'WAITING_FOR_QUOTES' | 'READY_TO_COUNTER' | 'COUNTERING' | 'READY' | 'NO_OFFER'
+  pick: QuoteRow | null
+  reason: string | null
+  reasonSource: 'AI' | 'TEMPLATE' | null
+  approval: Approval | null
+}
+
+export type PayableRow = {
+  id: string
+  needId: string
+  supplier: Supplier
+  description: string
+  paypalInvoiceId: string
+  payerViewUrl: string
+  total: Money
+  status: InvoiceStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type Policy = {
+  maxUnitPrice: Money
+  approvalAbove: Money
+  maxOrderTotal: Money
+  updatedAt?: string
+}
+
+export const getRecommendation = (desk: DeskId, needId: string) =>
+  getJson<Recommendation>(desk, `/needs/${needId}/recommendation`)
+
+/** Starts the need's one counter round if it hasn't started (the desk normally starts it by itself). */
+export const startCounter = (desk: DeskId, needId: string) =>
+  sendJson<Recommendation>(desk, 'POST', `/needs/${needId}/counter`, undefined, 'Starting the counter round failed')
+
+/** The owner's tap. The desk checks the policy again before sending anything. */
+export const decideApproval = (desk: DeskId, approvalId: string, decision: 'APPROVE' | 'REJECT') =>
+  sendJson<Approval>(desk, 'POST', `/approvals/${approvalId}`, { decision }, 'Saving your decision failed')
+
+export const listPayables = (desk: DeskId) => getJson<PayableRow[]>(desk, '/payables')
+
+export const getPolicy = (desk: DeskId) => getJson<Policy>(desk, '/policy')
+
+export const savePolicy = (desk: DeskId, policy: Policy) =>
+  sendJson<Policy>(desk, 'PUT', '/policy', policy, 'Saving the limits failed')
 
 /** Opens the desk's SSE stream. Call the returned function to close it. */
 export function subscribe(desk: DeskId, onEvent: (event: DeskEvent) => void, onStatus: (open: boolean) => void) {
