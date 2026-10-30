@@ -1,5 +1,6 @@
 package com.tradedesk.desk.buying;
 
+import java.time.Clock;
 import java.util.UUID;
 
 import com.tradedesk.desk.events.DeskEvent;
@@ -24,12 +25,15 @@ public class RecommendationView {
 
 	private final DeskEventStream events;
 
+	private final Clock clock;
+
 	public RecommendationView(NeedRepository needs, NeedService needService, NegotiationRepository negotiations,
-			DeskEventStream events) {
+			DeskEventStream events, Clock clock) {
 		this.needs = needs;
 		this.needService = needService;
 		this.negotiations = negotiations;
 		this.events = events;
+		this.clock = clock;
 	}
 
 	/** @throws NeedNotFoundException for an unknown need */
@@ -38,7 +42,9 @@ public class RecommendationView {
 		NegotiationRepository.Negotiation negotiation = negotiations.find(needId).orElse(null);
 		if (negotiation == null) {
 			Recommendation.Stage stage = need.status() == NeedRow.Status.COLLECTING
-					? Recommendation.Stage.WAITING_FOR_QUOTES : Recommendation.Stage.READY_TO_COUNTER;
+					? Recommendation.Stage.WAITING_FOR_QUOTES
+					: Negotiator.open(needService.quotes(needId), clock.instant()).isEmpty()
+							? Recommendation.Stage.NO_OFFER : Recommendation.Stage.READY_TO_COUNTER;
 			return new Recommendation(needId, stage, null, null, null, null);
 		}
 		return switch (negotiation.stage()) {

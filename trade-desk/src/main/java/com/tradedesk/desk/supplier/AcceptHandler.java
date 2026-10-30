@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.tradedesk.desk.agent.AcceptBody;
 import com.tradedesk.desk.agent.AgentJson;
 import com.tradedesk.desk.agent.AgentReplies;
+import com.tradedesk.desk.agent.AgentUnavailableException;
 import com.tradedesk.desk.agent.InvoiceBody;
 import com.tradedesk.desk.config.DeskProperties;
 import com.tradedesk.desk.contract.AgentEnvelope;
@@ -116,11 +117,16 @@ public class AcceptHandler {
 		}
 		catch (PayPalNotConfiguredException ex) {
 			log.warn("Can't invoice quote {}: PayPal is not configured on this desk", quote.messageId());
-			return replies.reject(accept, "We can't send invoices right now. Try again later.");
+			throw new AgentUnavailableException("This desk can't send invoices right now. Try again later.");
 		}
 		catch (PayPalException ex) {
-			// The progress is stored: accepting the same quote again resumes the same invoice.
-			return replies.reject(accept, "We couldn't send the invoice: " + ex.getMessage());
+			if (!isTransient(ex)) {
+				return replies.reject(accept, "We couldn't send the invoice: " + ex.getMessage());
+			}
+			// Not a reject, which would be stored as the final answer: the buyer retries, and since the progress is
+			// stored, accepting the same quote again resumes the same invoice.
+			log.warn("Can't invoice quote {} yet: {}", quote.messageId(), ex.getMessage());
+			throw new AgentUnavailableException("PayPal didn't take the invoice yet. Try again later.");
 		}
 		quotes.accept(quote.messageId(), row.id());
 		// The invoice reply tells the buyer this status; the poller only pushes later changes.
@@ -128,6 +134,11 @@ public class AcceptHandler {
 		log.info("Accepted quote {} from {}: invoice {} for {} {}", quote.messageId(), accept.from(), row.id(),
 				row.total().amount(), row.total().currency());
 		return invoiceReply(accept, row.id());
+	}
+
+	/** PayPal unreachable, rate-limited or failing on its side: worth a retry, unlike a refusal or a wrong total. */
+	private static boolean isTransient(PayPalException ex) {
+		return ex.status() == 0 || ex.status() == 429 || ex.status() >= 500;
 	}
 
 	/** Why this quote can't be accepted, checked against this desk's records and today's catalogue; null if it can. */

@@ -1,5 +1,6 @@
 package com.tradedesk.desk.api;
 
+import com.tradedesk.desk.agent.AgentUnavailableException;
 import com.tradedesk.desk.agent.InvalidAgentMessageException;
 import com.tradedesk.desk.buying.ApprovalNotFoundException;
 import com.tradedesk.desk.buying.BuyingController;
@@ -68,6 +69,11 @@ public class ApiExceptionHandler {
 	@ExceptionHandler
 	ProblemDetail invalidPolicy(InvalidPolicyException ex) {
 		return problem(HttpStatus.BAD_REQUEST, "Invalid policy", ex.getMessage());
+	}
+
+	@ExceptionHandler
+	ProblemDetail agentUnavailable(AgentUnavailableException ex) {
+		return problem(HttpStatus.SERVICE_UNAVAILABLE, "Try again later", ex.getMessage());
 	}
 
 	@ExceptionHandler

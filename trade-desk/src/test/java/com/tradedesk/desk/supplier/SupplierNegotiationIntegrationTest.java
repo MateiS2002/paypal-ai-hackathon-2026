@@ -217,6 +217,26 @@ class SupplierNegotiationIntegrationTest {
 		assertThat(type(send(counter(conversation, quoteId, "11.00")))).isEqualTo("reject");
 	}
 
+	@Test
+	void aPayPalFailureOnAcceptIsRetryableNotAFinalReject() throws Exception {
+		UUID conversation = UUID.randomUUID();
+		String quoteId = JsonPath.read(send(rfq(conversation)), "$.messageId");
+		// Down to the 10.80 floor, so the total is the 540.00 the PayPal stub answers with.
+		String revisedId = JsonPath.read(send(counter(conversation, quoteId, "9.00")), "$.messageId");
+		PAYPAL.stubFor(post("/v2/invoicing/invoices").willReturn(aResponse().withStatus(503)));
+
+		// 503 and no stored reply, so the buyer's retry of the same message is handled afresh.
+		String accept = accept(conversation, revisedId, "cafe.test");
+		mvc.perform(MockMvcRequestBuilders.post("/agent/messages")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(accept)).andExpect(status().isServiceUnavailable());
+
+		PAYPAL.stubFor(post("/v2/invoicing/invoices").willReturn(okJson(invoice("DRAFT")).withStatus(201)));
+		String invoice = send(accept);
+		assertThat(type(invoice)).isEqualTo("invoice");
+		assertThat(JsonPath.<String>read(invoice, "$.body.paypalInvoiceId")).isEqualTo(payPalId);
+	}
+
 	private String send(String envelope) throws Exception {
 		return mvc.perform(MockMvcRequestBuilders.post("/agent/messages")
 			.contentType(MediaType.APPLICATION_JSON)

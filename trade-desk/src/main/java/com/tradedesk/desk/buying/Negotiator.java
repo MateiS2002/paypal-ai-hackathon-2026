@@ -281,17 +281,21 @@ public class Negotiator {
 			views.publish(needId);
 			return;
 		}
-		QuoteRow pick = ranked.getFirst();
+		// A round cut short after the decision was stored keeps that decision's quote.
+		UUID decided = negotiations.approvalForNeed(needId).map(Approval::quoteId).orElse(null);
+		QuoteRow pick = ranked.stream().filter(q -> q.id().equals(decided)).findFirst().orElse(ranked.getFirst());
 		RecommendationWriter.Reason reason = writer.write(need.request(), ranked);
+		// The policy engine's decision is stored before the stage turns READY, so no read sees READY without its
+		// approval. If the desk stops in between, the round is still COUNTERING and resume() finishes it; decide() then
+		// keeps the approval it already stored.
+		orders.decide(need, pick);
 		negotiations.ready(needId, pick.id(), reason);
 		log.info("Need {}: Java picked {} ({} reason)", needId, pick.supplier().domain(), reason.source());
-		// Published once the approval exists, so the UI never sees READY without the policy engine's decision.
-		orders.decide(need, pick);
 		views.publish(needId);
 	}
 
 	/** Quotes still within their {@code validUntil}, in their current order. */
-	private static List<QuoteRow> open(List<QuoteRow> quotes, Instant now) {
+	static List<QuoteRow> open(List<QuoteRow> quotes, Instant now) {
 		return quotes.stream().filter(q -> q.validUntil().isAfter(now)).toList();
 	}
 
