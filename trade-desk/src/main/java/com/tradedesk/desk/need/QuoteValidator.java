@@ -128,6 +128,9 @@ public final class QuoteValidator {
 		if (q.note() == null || q.note().length() > MAX_NOTE) {
 			return "note must be at most " + MAX_NOTE + " characters";
 		}
+		if (q.note().chars().anyMatch(Character::isISOControl)) {
+			return "note must be one line";
+		}
 		return null;
 	}
 
@@ -185,6 +188,9 @@ public final class QuoteValidator {
 		}
 		if (q.note() == null || q.note().length() > MAX_NOTE) {
 			return "note must be at most " + MAX_NOTE + " characters";
+		}
+		if (q.note().chars().anyMatch(Character::isISOControl)) {
+			return "note must be one line";
 		}
 		return null;
 	}

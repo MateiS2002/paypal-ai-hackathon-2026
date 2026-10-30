@@ -89,6 +89,12 @@ class QuoteValidatorTest {
 	}
 
 	@Test
+	void dropsANoteWithALineBreak() {
+		String broken = quote("11.40", "USD", "50", "").replace("Fresh Santos.", "Fresh\\nSantos.");
+		assertThat(dropped(reply("quote", "roaster.test", broken))).contains("note");
+	}
+
+	@Test
 	void dropsOffersOfMoreThanAskedOrMoreThanInStock() {
 		assertThat(dropped(reply("quote", "roaster.test", quote("11.40", "USD", "60", "")))).contains("quantity");
 		assertThat(dropped(reply("quote", "roaster.test", quote("11.40", "USD", "500", "")))).contains("quantity");
