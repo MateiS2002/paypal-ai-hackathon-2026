@@ -98,7 +98,7 @@ A `quote`, `reject` or `invoice` sent as a request, rather than as a reply, gets
 | Field | Type | Rule |
 | --- | --- | --- |
 | `quoteId` | UUID | The `messageId` of the supplier's `quote` being countered. |
-| `unitPrice` | Money | The buyer's target, in whole cents and the quote's currency, and lower than the quote's `unitPrice`. The buyer agent proposes it; the café's Java code rounds it down to the cent and clamps it to at most the café's `maxUnitPrice` (defined per kg, so for a quote in `lb` it is converted first: 1 lb = 0.45359237 kg) and the need's own budget. If the result isn't strictly below the quote's `unitPrice`, no counter is sent for that quote. |
+| `unitPrice` | Money | The buyer's target, in whole cents and the quote's currency, and lower than the quote's `unitPrice`. The buyer agent proposes it; the café's Java code rounds it down to the cent and clamps it to at most the café's `maxUnitPrice` (defined per kg, so for a quote in `lb` it is converted first: 1 lb = 0.45359237 kg) and the need's own budget (a `null` budget or café `maxUnitPrice` sets no cap). If the result isn't more than zero and strictly below the quote's `unitPrice`, no counter is sent for that quote. |
 
 The supplier decides in Java, never in a prompt, and never goes below its floor price:
 
