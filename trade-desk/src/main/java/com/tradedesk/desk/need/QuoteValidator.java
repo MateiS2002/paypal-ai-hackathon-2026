@@ -128,7 +128,7 @@ public final class QuoteValidator {
 		if (q.note() == null || q.note().length() > MAX_NOTE) {
 			return "note must be at most " + MAX_NOTE + " characters";
 		}
-		if (q.note().chars().anyMatch(Character::isISOControl)) {
+		if (hasLineBreak(q.note())) {
 			return "note must be one line";
 		}
 		return null;
@@ -189,7 +189,7 @@ public final class QuoteValidator {
 		if (q.note() == null || q.note().length() > MAX_NOTE) {
 			return "note must be at most " + MAX_NOTE + " characters";
 		}
-		if (q.note().chars().anyMatch(Character::isISOControl)) {
+		if (hasLineBreak(q.note())) {
 			return "note must be one line";
 		}
 		return null;
@@ -218,4 +218,11 @@ public final class QuoteValidator {
 	public record Dropped(AgentEnvelope envelope, String problem) implements Outcome {
 	}
 
+	/** The contract allows one line: tabs get flattened later, but any kind of line break is malformed. */
+	private static boolean hasLineBreak(String note) {
+		return note.chars().anyMatch(c -> c == '\n' || c == '\r' || c == 0x0B || c == 0x0C || c == 0x85
+				|| c == 0x2028 || c == 0x2029);
+	}
+
 }
+

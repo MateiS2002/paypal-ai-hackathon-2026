@@ -95,6 +95,14 @@ class QuoteValidatorTest {
 	}
 
 	@Test
+	void dropsANoteWithAUnicodeLineSeparatorButKeepsATab() {
+		String separator = quote("11.40", "USD", "50", "").replace("Fresh Santos.", "Fresh\\u2028Santos.");
+		assertThat(dropped(reply("quote", "roaster.test", separator))).contains("note");
+		String tabbed = quote("11.40", "USD", "50", "").replace("Fresh Santos.", "Fresh\\tSantos.");
+		assertThat(check(reply("quote", "roaster.test", tabbed))).isInstanceOf(QuoteValidator.Accepted.class);
+	}
+
+	@Test
 	void dropsOffersOfMoreThanAskedOrMoreThanInStock() {
 		assertThat(dropped(reply("quote", "roaster.test", quote("11.40", "USD", "60", "")))).contains("quantity");
 		assertThat(dropped(reply("quote", "roaster.test", quote("11.40", "USD", "500", "")))).contains("quantity");
