@@ -33,7 +33,7 @@ Every desk (café, roaster, simulated suppliers) is the same `trade-desk` app an
 | `POST /api/needs` | session | S2 | A confirmed [purchase request](#purchase-request); stores the need and sends an RFQ to every supplier. See [Posting a need](#posting-a-need). |
 | `GET /api/needs` | session | S2 | This desk's needs, newest first: an array of [need rows](#need-row). |
 | `GET /api/needs/{id}/quotes` | session | S2 | Every quote for the need that passed the desk's checks, ranked best first: an array of [quote rows](#quote-row). Quotes past their `validUntil` are included, the same as in `quote.received`; malformed replies never are. `404` for an unknown need. |
-| `POST /api/needs/{id}/counter` | session | S3 | Starts the need's one counter round if it hasn't started (the desk also starts it by itself once every supplier has answered). No body. `202` with the [recommendation](#recommendation) when this call started it, `200` with it when it had already started. `409` while the need is still collecting quotes, or when it has no open quote to counter (none arrived, or every one has expired). |
+| `POST /api/needs/{id}/counter` | session | S3 | Starts the need's one counter round if it hasn't started (the desk also starts it by itself once the need is `COMPLETE`). No body. `202` with the [recommendation](#recommendation) when this call started it, `200` with it when it had already started. `409` while the need is still collecting quotes, or when it has no open quote to counter (none arrived, or every one has expired). |
 | `GET /api/needs/{id}/recommendation` | session | S3 | The need's [recommendation](#recommendation). `404` for an unknown need. |
 | `POST /api/approvals/{id}` | session | S3 | `{"decision": "APPROVE" \| "REJECT"}` on a `PENDING` [approval](#approval). `APPROVE` also retries an `APPROVED` or `AUTO_APPROVED` approval whose `order` is `UNANSWERED`. See [Approving](#approving). |
 | `GET /api/payables` | session | S3 | Invoices this desk has to pay, newest first: an array of [payable rows](#payable-row). |
@@ -223,7 +223,7 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
 
 ## Counter, approve, invoice (S3)
 
-Once every supplier has answered the RFQ (the need is `COMPLETE`), the café's buyer agent counters its top 3 quotes once ([agent-messages.md](agent-messages.md#negotiation-s3)). The counter is automatic and shown as it happens: each quote row's `counter` moves from `PENDING` to its outcome in `quote.received` events. Then Java ranks the revised quotes with the S2 ranking, picks rank 1 as the winner, and the policy engine decides:
+Once every supplier has answered the RFQ, refused it or timed out (the need is `COMPLETE`), the café's buyer agent counters its top 3 quotes once ([agent-messages.md](agent-messages.md#negotiation-s3)). The counter is automatic and shown as it happens: each quote row's `counter` moves from `PENDING` to its outcome in `quote.received` events. Then Java ranks the revised quotes with the S2 ranking, picks rank 1 as the winner, and the policy engine decides:
 
 | Decision | What happens |
 | --- | --- |
