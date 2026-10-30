@@ -35,7 +35,7 @@ Every desk (café, roaster, simulated suppliers) is the same `trade-desk` app an
 | `GET /api/needs/{id}/quotes` | session | S2 | Every quote for the need that passed the desk's checks, ranked best first: an array of [quote rows](#quote-row). Quotes past their `validUntil` are included, the same as in `quote.received`; malformed replies never are. `404` for an unknown need. |
 | `POST /api/needs/{id}/counter` | session | S3 | Starts the need's one counter round if it hasn't started (the desk also starts it by itself once every supplier has answered). No body. `202` with the [recommendation](#recommendation) when this call started it, `200` with it when it had already started. `409` while the need is still collecting quotes or has no quote to counter. |
 | `GET /api/needs/{id}/recommendation` | session | S3 | The need's [recommendation](#recommendation). `404` for an unknown need. |
-| `POST /api/approvals/{id}` | session | S3 | `{"decision": "APPROVE" \| "REJECT"}` on a `PENDING` [approval](#approval). See [Approving](#approving). |
+| `POST /api/approvals/{id}` | session | S3 | `{"decision": "APPROVE" \| "REJECT"}` on a `PENDING` [approval](#approval). `APPROVE` also retries an `APPROVED` or `AUTO_APPROVED` approval whose `order` is `UNANSWERED`. See [Approving](#approving). |
 | `GET /api/payables` | session | S3 | Invoices this desk has to pay, newest first: an array of [payable rows](#payable-row). |
 | `GET /api/policy` | session | S3 | The desk's [policy](#policy): the limits its policy engine checks. |
 | `PUT /api/policy` | session | S3 | Replaces the policy. `200` with the stored policy, `400` if a rule below is broken. Applies to every decision made after it, including an approval tapped later. |
@@ -279,21 +279,21 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 | `decision` | The policy engine's outcome: `AUTO_ACCEPT`, `NEEDS_APPROVAL` or `BLOCKED`. |
 | `reasons` | Plain sentences written by the policy engine, at least one. |
 | `status` | `AUTO_APPROVED`, `PENDING`, `APPROVED`, `REJECTED` or `BLOCKED`. |
-| `order` | `NOT_SENT` until an `accept` goes out, then `SENDING`, then `INVOICED` (a payable exists), `REFUSED` (the supplier answered `reject`) or `FAILED` (no answer, or an `invoice` the café refused). |
+| `order` | `NOT_SENT` until an `accept` goes out, then `SENDING`, then `INVOICED` (a payable exists), `REFUSED` (the supplier answered `reject`), `UNANSWERED` (the `accept` couldn't be sent or got no answer; the owner can retry it) or `FAILED` (final: an `invoice` the café refused, or an `accept` this desk can't send, such as a quote it can no longer reach). |
 | `orderDetail` | Why the order was refused or failed, safe to show; otherwise `null`. |
 
 ### Approving
 
 `POST /api/approvals/{id}` with `{"decision": "APPROVE"}` or `{"decision": "REJECT"}`.
 
-`APPROVE` also retries a failed order: on an `APPROVED` or `AUTO_APPROVED` approval whose `order` is `FAILED`, the café asks the policy engine again and, unless it says `BLOCKED`, sends the same `accept` again (same `messageId`, so a supplier that already invoiced it returns that invoice). The UI shows this as "Try again".
+`APPROVE` also retries an unanswered order: on an `APPROVED` or `AUTO_APPROVED` approval whose `order` is `UNANSWERED`, the café asks the policy engine again and, unless it says `BLOCKED`, sends the same `accept` again (same `messageId`, so a supplier that already invoiced it returns that invoice). The UI shows this as "Try again". A `FAILED` order is never retried, because the same `accept` would get the same refused invoice back.
 
 | Status | When |
 | --- | --- |
 | `200` | Decided. The body is the approval. On `APPROVE` the policy engine checks the order again with the current policy and time first; `order` is then `SENDING` and the result arrives as `recommendation.updated` and `payable.updated` events. |
 | `400` | A missing or unknown `decision`. |
 | `404` | Unknown approval. |
-| `409` | Not `PENDING` (already decided, or a double tap) and not a failed order to retry, or on `APPROVE` the policy engine now says `BLOCKED` (for example the quote expired or the limits changed). A `PENDING` approval is then stored as `BLOCKED` with the new reasons; a failed order stays `FAILED`. Nothing is sent. |
+| `409` | Not `PENDING` (already decided, or a double tap) and not an unanswered order to retry, or on `APPROVE` the policy engine now says `BLOCKED` (for example the quote expired or the limits changed). A `PENDING` approval is then stored as `BLOCKED` with the new reasons; an unanswered order stays `UNANSWERED`. Nothing is sent. |
 
 ### Payable row
 
