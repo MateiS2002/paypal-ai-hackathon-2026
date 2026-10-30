@@ -33,7 +33,7 @@ Every desk (café, roaster, simulated suppliers) is the same `trade-desk` app an
 | `POST /api/needs` | session | S2 | A confirmed [purchase request](#purchase-request); stores the need and sends an RFQ to every supplier. See [Posting a need](#posting-a-need). |
 | `GET /api/needs` | session | S2 | This desk's needs, newest first: an array of [need rows](#need-row). |
 | `GET /api/needs/{id}/quotes` | session | S2 | Every quote for the need that passed the desk's checks, ranked best first: an array of [quote rows](#quote-row). Quotes past their `validUntil` are included, the same as in `quote.received`; malformed replies never are. `404` for an unknown need. |
-| `POST /api/needs/{id}/counter` | session | S3 | Starts the need's one counter round if it hasn't started (the desk also starts it by itself once every supplier has answered). No body. `202` with the [recommendation](#recommendation) when this call started it, `200` with it when it had already started. `409` while the need is still collecting quotes or has no quote to counter. |
+| `POST /api/needs/{id}/counter` | session | S3 | Starts the need's one counter round if it hasn't started (the desk also starts it by itself once every supplier has answered). No body. `202` with the [recommendation](#recommendation) when this call started it, `200` with it when it had already started. `409` while the need is still collecting quotes, or when it has no open quote to counter (none arrived, or every one has expired). |
 | `GET /api/needs/{id}/recommendation` | session | S3 | The need's [recommendation](#recommendation). `404` for an unknown need. |
 | `POST /api/approvals/{id}` | session | S3 | `{"decision": "APPROVE" \| "REJECT"}` on a `PENDING` [approval](#approval). `APPROVE` also retries an `APPROVED` or `AUTO_APPROVED` approval whose `order` is `UNANSWERED`. See [Approving](#approving). |
 | `GET /api/payables` | session | S3 | Invoices this desk has to pay, newest first: an array of [payable rows](#payable-row). |
@@ -231,7 +231,7 @@ Once every supplier has answered the RFQ (the need is `COMPLETE`), the café's b
 | `NEEDS_APPROVAL` | `approval.needed`; nothing reaches the supplier until the owner taps Approve. |
 | `BLOCKED` | Nothing is ever sent. The reasons are shown; the owner can change the policy and post the need again. |
 
-The LLM proposes counter targets and writes the one-line reason, nothing else. Java clamps the targets, picks the winner and makes the decision; a reason that argues for another supplier is replaced by a template.
+The LLM proposes counter targets and writes the one-line reason, nothing else. Java clamps the targets, picks the winner and makes the decision. The reason is checked for form, not meaning: it must name Java's pick as `S1`, start with `S1:`, use only labels that exist and fit in one line, or a template replaces it. A sentence that passes can still praise another supplier; it is display text only, and what gets acted on is Java's pick.
 
 ### Recommendation
 
@@ -251,8 +251,8 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 | `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote was left to pick (none arrived, all expired, or none answered its counter). |
 | `pick` | The [quote row](#quote-row) Java ranked first among quotes still within `validUntil` whose counter didn't end in `NO_ANSWER` (the supplier may have replaced such a quote, so it may no longer be acceptable), or `null` before `READY`. |
 | `reason` | One line, at most 200 characters, display text only. `null` before `READY`. |
-| `reasonSource` | `AI` when the buyer agent wrote the reason and it passed the checks, `TEMPLATE` when the desk's code wrote it (no LLM, a failed call, or an answer that named another supplier). |
-| `approval` | The need's [approval](#approval), or `null` before `READY`. |
+| `reasonSource` | `AI` when the buyer agent wrote the reason and it passed the checks, `TEMPLATE` when the desk's code wrote it (no LLM, a failed call, or an answer that failed the checks: it picked another supplier, didn't start with `S1:`, used an unknown label or was too long). |
+| `approval` | The need's [approval](#approval), or `null` before `READY`. The desk publishes `READY` only after the policy engine's decision is stored, so a `READY` recommendation carries its approval. |
 
 ### Approval
 
@@ -315,7 +315,7 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 - `status` is S1's [invoice status](#invoice-row), as last reported by the supplier in `invoice` or `invoice.status`.
 - `payerViewUrl` is always a `https://www.sandbox.paypal.com/` link; the café refuses an invoice with any other.
 - `description` is written by the café from its own need, not taken from the supplier.
-- The café can't read another merchant's PayPal invoice, so it can't check the amount behind `payerViewUrl` itself. It checks the `invoice` reply's `total` against the accepted quote, and the UI shows that agreed total and `paypalInvoiceId` next to the pay link, so the owner can compare them with PayPal's page before paying. S5's signed envelopes tie the reply to the supplier.
+- The café can't read another merchant's PayPal invoice, so it can't check the amount behind `payerViewUrl` itself. It checks the `invoice` reply's `total` against the accepted quote, and the UI shows that agreed total and `paypalInvoiceId` next to the pay link, so the owner can compare them with PayPal's page before paying. Until S5 lands, `from` is only claimed; S5's signed envelopes will tie the reply to the supplier.
 
 ### Policy
 
