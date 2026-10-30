@@ -53,7 +53,9 @@ class InvoiceReplyCheckTest {
 	@Test
 	void aPayLinkForAnotherInvoiceIsRefused() {
 		for (String url : new String[] { "https://www.sandbox.paypal.com/invoice/p/#INV2-ZZZZ-9999",
-				"https://www.sandbox.paypal.com/invoice/p/#INV2-ABCD-12345", "https://www.sandbox.paypal.com/invoice/p/" }) {
+				"https://www.sandbox.paypal.com/invoice/p/#INV2-ABCD-12345", "https://www.sandbox.paypal.com/invoice/p/",
+				"https://www.sandbox.paypal.com/help#INV2-ABCD-1234", "https://www.sandbox.paypal.com/invoice/p/x#INV2-ABCD-1234",
+				"https://www.sandbox.paypal.com/help/INV2-ABCD-1234" }) {
 			assertThat(check(url, "541.50")).as(url).isInstanceOf(InvoiceReplyCheck.Dropped.class);
 		}
 		assertThat(check("https://www.sandbox.paypal.com/invoice/payerView/details/INV2-ABCD-1234", "541.50"))

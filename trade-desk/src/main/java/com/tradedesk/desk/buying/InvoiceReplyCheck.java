@@ -20,6 +20,11 @@ public final class InvoiceReplyCheck {
 
 	static final Pattern PAYPAL_INVOICE_ID = Pattern.compile("[A-Za-z0-9-]{1,100}");
 
+	/** The two shapes of PayPal's hosted invoice page: the invoice id in the fragment, or as the last path segment. */
+	static final String PAY_PAGE_PATH = "/invoice/p/";
+
+	static final String PAYER_VIEW_PATH = "/invoice/payerView/details/";
+
 	/** The only host a pay link may point to. */
 	static final String PAY_HOST = "www.sandbox.paypal.com";
 
@@ -90,14 +95,17 @@ public final class InvoiceReplyCheck {
 	}
 
 	/**
-	 * PayPal's pay page names its invoice in the fragment ({@code /invoice/p/#INV2-...}) or, in older links, as the last
-	 * path segment. Either must be exactly {@code paypalInvoiceId}, so the link can't open another invoice.
+	 * PayPal's pay page names its invoice in the fragment of {@code /invoice/p/} or as the last segment of
+	 * {@code /invoice/payerView/details/}. Only those two paths, and exactly {@code paypalInvoiceId}, so the link can't
+	 * open another invoice or an unrelated page.
 	 */
 	static boolean namesInvoice(String url, String paypalInvoiceId) {
 		URI uri = URI.create(url);
 		String path = uri.getPath() == null ? "" : uri.getPath();
-		return paypalInvoiceId.equals(uri.getFragment())
-				|| (uri.getFragment() == null && path.endsWith("/" + paypalInvoiceId));
+		if (uri.getFragment() != null) {
+			return PAY_PAGE_PATH.equals(path) && paypalInvoiceId.equals(uri.getFragment());
+		}
+		return path.equals(PAYER_VIEW_PATH + paypalInvoiceId);
 	}
 
 	public sealed interface Outcome permits Invoiced, Refused, Dropped {

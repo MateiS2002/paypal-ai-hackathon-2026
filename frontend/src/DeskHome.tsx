@@ -42,12 +42,19 @@ function upsertNewer(rows: PayableRow[], row: PayableRow): PayableRow[] {
   return existing && Date.parse(existing.updatedAt) >= Date.parse(row.updatedAt) ? rows : upsert(rows, row)
 }
 
+/** A counter only moves forward: none, then PENDING, then an outcome. */
+function counterProgress(quotes: QuoteRow[]): number {
+  return quotes.reduce((sum, q) => sum + (q.counter === null ? 0 : q.counter.outcome === 'PENDING' ? 1 : 2), 0)
+}
+
 /**
- * Quote lists only grow, and each event carries the need's whole ranked list. So when a reload and an event race,
- * the longer list is the newer one.
+ * Quote lists only grow, and a counter only moves forward, so when a reload and an event race, the longer list is the
+ * newer one, and at equal length the one with more counter progress. Arrival order never decides.
  */
 function newer(current: QuoteRow[] | undefined, incoming: QuoteRow[]): QuoteRow[] {
-  return current && current.length > incoming.length ? current : incoming
+  if (!current || current.length < incoming.length) return incoming
+  if (current.length > incoming.length) return current
+  return counterProgress(current) > counterProgress(incoming) ? current : incoming
 }
 
 /** A need only moves forward (COLLECTING to COMPLETE, more quotes), so the further-along copy is the newer one. */
