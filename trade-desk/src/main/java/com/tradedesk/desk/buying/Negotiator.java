@@ -144,6 +144,10 @@ public class Negotiator {
 		if (need.quotesReceived() == 0) {
 			throw new NegotiationConflictException("No supplier quoted, so there is nothing to counter.");
 		}
+		if (open(needService.quotes(needId), clock.instant()).isEmpty()) {
+			throw new NegotiationConflictException("Every quote has expired, so there is nothing to counter. Post the "
+					+ "need again for fresh quotes.");
+		}
 		if (!negotiations.start(needId)) {
 			return false;
 		}
@@ -281,7 +285,7 @@ public class Negotiator {
 		RecommendationWriter.Reason reason = writer.write(need.request(), ranked);
 		negotiations.ready(needId, pick.id(), reason);
 		log.info("Need {}: Java picked {} ({} reason)", needId, pick.supplier().domain(), reason.source());
-		views.publish(needId);
+		// Published once the approval exists, so the UI never sees READY without the policy engine's decision.
 		orders.decide(need, pick);
 		views.publish(needId);
 	}
