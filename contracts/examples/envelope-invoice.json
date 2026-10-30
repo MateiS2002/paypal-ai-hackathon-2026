@@ -1,0 +1,14 @@
+{
+  "messageId": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b",
+  "type": "invoice",
+  "from": "roaster.test",
+  "to": "cafe.test",
+  "conversationId": "0b9e8d7c-6a5b-4c3d-8e2f-1a0b9c8d7e6f",
+  "sentAt": "2026-11-03T10:00:33Z",
+  "body": {
+    "paypalInvoiceId": "INV2-ABCD-1234-EFGH-5678",
+    "payerViewUrl": "https://www.sandbox.paypal.com/invoice/p/#INV2-ABCD-1234-EFGH-5678",
+    "total": { "amount": "541.50", "currency": "USD" },
+    "status": "SENT"
+  }
+}

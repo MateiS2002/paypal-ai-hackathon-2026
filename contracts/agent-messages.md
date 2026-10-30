@@ -74,9 +74,100 @@ The café drops and logs a quote that breaks any rule above, comes from a desk i
 
 | Field | Type | Rule |
 | --- | --- | --- |
-| `rfqId` | UUID | The `messageId` of the message this refuses. S3 reuses this body for refused counters and accepts. |
+| `rfqId` | UUID | The `messageId` of the message this refuses: an `rfq`, or in S3 a `counter`, an `accept` or an `invoice.status`. The name is kept from S2 so the body stays one shape. |
 | `reason` | string | 1 to 200 characters, safe to show to the owner as plain text. |
+
+## Negotiation (S3)
+
+After every supplier has answered the RFQ, the café sends **one** `counter` to each of its top 3 quotes (ranked as in [desk-api.md](desk-api.md#quote-row)), picks a winner in Java, and sends `accept` once its policy engine (and, above the approval limit, the owner) agrees. The supplier answers the accept with an `invoice` and later pushes `invoice.status` whenever PayPal reports a change. Every message in a negotiation uses the RFQ's `conversationId`.
+
+| Request | From | Reply | Scope from S5 |
+| --- | --- | --- | --- |
+| `counter` | buyer | revised `quote`, or `reject` (the quote stands as it was) | `quote:counter` |
+| `accept` | buyer | `invoice`, or `reject` (no invoice was created) | `quote:accept` |
+| `invoice.status` | supplier | `invoice.status` (what the buyer recorded), or `reject` (ignored) | `invoice:notify` |
+
+A `quote`, `reject` or `invoice` sent as a request, rather than as a reply, gets `400`. Until S5 every request above is unauthenticated, like `rfq`.
+
+### `counter` (buyer to supplier)
+
+```json
+{ "quoteId": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "unitPrice": { "amount": "10.83", "currency": "USD" } }
+```
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `quoteId` | UUID | The `messageId` of the supplier's `quote` being countered. |
+| `unitPrice` | Money | The buyer's target, in whole cents and the quote's currency, and lower than the quote's `unitPrice`. The buyer agent proposes it; the café's Java code clamps it to at most the quote's price and at most the café's `maxUnitPrice` before it is sent. |
+
+The supplier decides in Java, never in a prompt, and never goes below its floor price:
+
+- **met:** the revised quote's `unitPrice` equals the target;
+- **partly met:** it is between the target and the old price;
+- **held:** it equals the old price, or the supplier answers `reject`.
+
+There is exactly one counter per quote. A second `counter` for the same quote, or one for a quote that is expired, already accepted or not addressed to the sender, gets `reject`. A repeated `messageId` gets the stored reply, as always. Example: [envelope-counter.json](examples/envelope-counter.json).
+
+### Revised `quote` (supplier to buyer, reply to `counter`)
+
+The same body as an S2 [`quote`](#quote-supplier-to-buyer-reply-to-rfq-s2), plus one field:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `revises` | UUID | The `quoteId` of the counter. Absent or `null` on an S2 quote. |
+
+`rfqId`, `supplierName`, `simulated`, `quantity`, `unit` and `deliveryDate` must equal the quote it revises; only `unitPrice`, `availableQuantity`, `validUntil` and `note` may change. `unitPrice` is at most the old price. The revised quote replaces the old one: from then on the buyer accepts the revised quote's `messageId`, and the supplier refuses to accept the old one. The café drops and logs a revised quote that breaks any of these rules, and the old quote stands. Example: [envelope-quote-revised.json](examples/envelope-quote-revised.json).
+
+### `accept` (buyer to supplier)
+
+```json
+{
+  "quoteId": "4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a",
+  "billTo": { "name": "Corner Café", "email": "buyer@example.com" }
+}
+```
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `quoteId` | UUID | The `messageId` of the quote being accepted: the revised quote if there was one. |
+| `billTo` | object | Who the PayPal invoice goes to: `name` 1 to 100 characters, `email` a valid address. The café sends its own name and `PAYPAL_SANDBOX_BUYER_EMAIL`. It only reaches the supplier it accepts. |
+
+The supplier re-checks, in Java, that the quote is its own latest quote for this buyer, still within `validUntil`, still at or above its floor price, and still in stock. If all hold it creates and sends a PayPal invoice with `source = NEGOTIATION`, linked to the `conversationId`, and answers `invoice`. Otherwise it answers `reject` with the reason (for example an expired quote) and creates no invoice. Accepting the same quote again, with any `messageId`, returns the same invoice: one quote never gets two invoices. Examples: [envelope-accept.json](examples/envelope-accept.json), and the refusal of an expired quote, [envelope-reject-expired.json](examples/envelope-reject-expired.json).
+
+### `invoice` (supplier to buyer, reply to `accept`)
+
+```json
+{
+  "paypalInvoiceId": "INV2-ABCD-1234-EFGH-5678",
+  "payerViewUrl": "https://www.sandbox.paypal.com/invoice/p/#INV2-ABCD-1234-EFGH-5678",
+  "total": { "amount": "541.50", "currency": "USD" },
+  "status": "SENT"
+}
+```
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `paypalInvoiceId` | string | PayPal's invoice id, 1 to 100 characters of letters, digits and `-`. |
+| `payerViewUrl` | URL | PayPal's hosted pay page. Must be `https://www.sandbox.paypal.com/...`; the café refuses any other link, so a supplier can't send the owner to a look-alike page. |
+| `total` | Money | Must equal the accepted quote's `quantity × unitPrice`, rounded half-up to the cent, in the quote's currency. The café refuses an invoice with any other total. |
+| `status` | string | S1's status enum (`DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `UNPAID`, `PAYMENT_PENDING`, `CANCELLED`, `REFUNDED`, `AWAITING_APPROVAL`, `OTHER`); `SENT` when the invoice has just been sent. |
+
+Example: [envelope-invoice.json](examples/envelope-invoice.json).
+
+### `invoice.status` (supplier to buyer)
+
+```json
+{ "paypalInvoiceId": "INV2-ABCD-1234-EFGH-5678", "status": "PAID", "updatedAt": "2026-11-03T10:04:12Z" }
+```
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `paypalInvoiceId` | string | As in `invoice`. |
+| `status` | string | S1's status enum. |
+| `updatedAt` | date-time | When the supplier saw the change. The buyer ignores a status older than the one it holds, so messages that arrive out of order can't move an invoice back. |
+
+The supplier's invoice poller sends this whenever a `NEGOTIATION` invoice's status changes, and keeps retrying until the buyer has answered. It only sends to buyer desks it knows (`DESK_BUYERS`, [README](README.md#environment-variables)), never to an address taken from a message. The buyer ignores (answers `reject`) a status for an invoice id it doesn't hold, or from a desk that isn't that invoice's supplier. Until S5, `from` is only claimed, so this message is unauthenticated: S5's `invoice:notify` scope and envelope signature close that gap. Example: [envelope-invoice-status.json](examples/envelope-invoice-status.json).
 
 ## Later slices
 
-S3 adds `counter`, revised `quote`, `accept`, `invoice` and `invoice.status`; S5 adds the envelope `signature`. Their bodies are defined in the [S3](../docs/slices/s03-counter-approve-invoice.md) and [S5](../docs/slices/s05-tokens-and-fingerprints.md) specs and move into this file when those slices land.
+S5 adds the envelope `signature`, defined in the [S5](../docs/slices/s05-tokens-and-fingerprints.md) spec; it moves into this file when that slice lands.

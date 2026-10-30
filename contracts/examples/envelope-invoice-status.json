@@ -1,0 +1,13 @@
+{
+  "messageId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+  "type": "invoice.status",
+  "from": "roaster.test",
+  "to": "cafe.test",
+  "conversationId": "0b9e8d7c-6a5b-4c3d-8e2f-1a0b9c8d7e6f",
+  "sentAt": "2026-11-03T10:04:13Z",
+  "body": {
+    "paypalInvoiceId": "INV2-ABCD-1234-EFGH-5678",
+    "status": "PAID",
+    "updatedAt": "2026-11-03T10:04:12Z"
+  }
+}

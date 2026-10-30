@@ -33,6 +33,12 @@ Every desk (café, roaster, simulated suppliers) is the same `trade-desk` app an
 | `POST /api/needs` | session | S2 | A confirmed [purchase request](#purchase-request); stores the need and sends an RFQ to every supplier. See [Posting a need](#posting-a-need). |
 | `GET /api/needs` | session | S2 | This desk's needs, newest first: an array of [need rows](#need-row). |
 | `GET /api/needs/{id}/quotes` | session | S2 | Every quote for the need that passed the desk's checks, ranked best first: an array of [quote rows](#quote-row). Quotes past their `validUntil` are included, the same as in `quote.received`; malformed replies never are. `404` for an unknown need. |
+| `POST /api/needs/{id}/counter` | session | S3 | Starts the need's one counter round if it hasn't started (the desk also starts it by itself once every supplier has answered). No body. `202` with the [recommendation](#recommendation) when this call started it, `200` with it when it had already started. `409` while the need is still collecting quotes or has no quote to counter. |
+| `GET /api/needs/{id}/recommendation` | session | S3 | The need's [recommendation](#recommendation). `404` for an unknown need. |
+| `POST /api/approvals/{id}` | session | S3 | `{"decision": "APPROVE" \| "REJECT"}` on a `PENDING` [approval](#approval). See [Approving](#approving). |
+| `GET /api/payables` | session | S3 | Invoices this desk has to pay, newest first: an array of [payable rows](#payable-row). |
+| `GET /api/policy` | session | S3 | The desk's [policy](#policy): the limits its policy engine checks. |
+| `PUT /api/policy` | session | S3 | Replaces the policy. `200` with the stored policy, `400` if a rule below is broken. Applies to every decision made after it, including an approval tapped later. |
 
 ## Events (`GET /api/events`)
 
@@ -43,7 +49,10 @@ One SSE stream per desk. Each event's `data` is JSON shaped by [sse-event.schema
 | `desk.connected` | S0 | `{"deskId": "roaster"}`, sent once when the stream opens. |
 | `invoice.updated` | S1 | An [invoice row](#invoice-row), sent when an invoice is created or its PayPal status changes. The UI replaces the row with the same `id`. Example: [sse-invoice-updated.json](examples/sse-invoice-updated.json). |
 | `need.updated` | S2 | A [need row](#need-row), sent when a need is posted and when every supplier has answered or timed out. |
-| `quote.received` | S2 | `{"needId", "quotes": [...]}`: the need's whole ranked list of [quote rows](#quote-row), sent each time a valid quote arrives. A new quote can change the rank of earlier ones, so the UI replaces the list. A need's list only ever grows: a supplier quotes at most once per need, and neither the events nor `GET /api/needs/{id}/quotes` ever drop a quote, including after its `validUntil` (each row carries `validUntil`; the UI may mark it expired, and S3 refuses to accept an expired quote). So when a GET response and an event race, the UI keeps whichever list has more quotes; an older snapshot can never remove a newer quote. Example: [sse-quote-received.json](examples/sse-quote-received.json). |
+| `quote.received` | S2 | `{"needId", "quotes": [...]}`: the need's whole ranked list of [quote rows](#quote-row), sent each time a valid quote arrives. A new quote can change the rank of earlier ones, so the UI replaces the list. A need's list only ever grows: a supplier quotes at most once per need, and neither the events nor `GET /api/needs/{id}/quotes` ever drop a quote, including after its `validUntil` (each row carries `validUntil`; the UI may mark it expired, and S3 refuses to accept an expired quote). So when a GET response and an event race, the UI keeps whichever list has more quotes; an older snapshot can never remove a newer quote. Example: [sse-quote-received.json](examples/sse-quote-received.json). From S3 it is also sent when a counter goes out and when its answer arrives: the list keeps its length, but rows change price, `counter` and rank. So for lists of equal length the UI keeps the one from the event, and reloads with `GET /api/needs/{id}/quotes` after it reconnects. |
+| `recommendation.updated` | S3 | A [recommendation](#recommendation), sent each time its `stage`, `approval` or order changes. The UI replaces the need's recommendation. Example: [sse-recommendation-updated.json](examples/sse-recommendation-updated.json). |
+| `approval.needed` | S3 | An [approval](#approval) in `PENDING`: the owner must tap Approve or Reject. Sent once, when the policy engine decides `NEEDS_APPROVAL`. Example: [sse-approval-needed.json](examples/sse-approval-needed.json). |
+| `payable.updated` | S3 | A [payable row](#payable-row), sent when an invoice arrives from a supplier and when its supplier reports a new status. The UI replaces the row with the same `id`. Buyer desks only; a payable is not a ledger row, so it has its own type rather than `invoice.updated`. Example: [sse-payable-updated.json](examples/sse-payable-updated.json). |
 
 ## Errors
 
@@ -210,3 +219,121 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
   - Any remaining tie is broken by `supplier.domain`, so the order never depends on arrival time.
 - `supplier.name` and `supplier.simulated` are what the supplier claimed in its quote (verified from S4).
 - `note` is display text written by the supplier's LLM; the café never reads numbers from it.
+- `counter` (S3) is `null` until the need's counter round reaches this quote, then `{"targetUnitPrice": Money, "previousUnitPrice": Money, "outcome"}`. `outcome` is `PENDING` while the counter is out, then `MET`, `PARTLY_MET`, `HELD` or `NO_ANSWER` (unreachable, timed out, or a revised quote the café dropped). Once the answer is in, `unitPrice`, `total`, `validUntil` and `note` are the revised quote's and `rank` is recomputed; `previousUnitPrice` keeps the price before the counter.
+
+## Counter, approve, invoice (S3)
+
+Once every supplier has answered the RFQ (the need is `COMPLETE`), the café's buyer agent counters its top 3 quotes once ([agent-messages.md](agent-messages.md#negotiation-s3)). The counter is automatic and shown as it happens: each quote row's `counter` moves from `PENDING` to its outcome in `quote.received` events. Then Java ranks the revised quotes with the S2 ranking, picks rank 1 as the winner, and the policy engine decides:
+
+| Decision | What happens |
+| --- | --- |
+| `AUTO_ACCEPT` | The café sends `accept` at once. |
+| `NEEDS_APPROVAL` | `approval.needed`; nothing reaches the supplier until the owner taps Approve. |
+| `BLOCKED` | Nothing is ever sent. The reasons are shown; the owner can change the policy and post the need again. |
+
+The LLM proposes counter targets and writes the one-line reason, nothing else. Java clamps the targets, picks the winner and makes the decision; a reason that argues for another supplier is replaced by a template.
+
+### Recommendation
+
+```json
+{
+  "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+  "stage": "READY",
+  "pick": { "...": "a quote row" },
+  "reason": "Roaster & Co: $1.90 more per kg than Bulk Bean Traders but arrives 7 days sooner, and you asked for speed.",
+  "reasonSource": "AI",
+  "approval": { "...": "an approval" }
+}
+```
+
+| Field | Rule |
+| --- | --- |
+| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote was left to pick (none arrived, or all expired). |
+| `pick` | The [quote row](#quote-row) Java ranked first among quotes still within `validUntil`, or `null` before `READY`. |
+| `reason` | One line, at most 200 characters, display text only. `null` before `READY`. |
+| `reasonSource` | `AI` when the buyer agent wrote the reason and it passed the checks, `TEMPLATE` when the desk's code wrote it (no LLM, a failed call, or an answer that named another supplier). |
+| `approval` | The need's [approval](#approval), or `null` before `READY`. |
+
+### Approval
+
+```json
+{
+  "id": "5e4d3c2b-1a09-4f8e-8d7c-6b5a4f3e2d1c",
+  "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+  "quoteId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+  "supplier": { "domain": "roaster.test", "name": "Roaster & Co", "simulated": false },
+  "total": { "amount": "541.50", "currency": "USD" },
+  "decision": "NEEDS_APPROVAL",
+  "reasons": ["The total 541.50 USD is above your approval limit of 500.00 USD."],
+  "status": "PENDING",
+  "order": "NOT_SENT",
+  "orderDetail": null,
+  "createdAt": "2026-11-03T10:00:20Z",
+  "decidedAt": null
+}
+```
+
+| Field | Rule |
+| --- | --- |
+| `quoteId` | The café's quote row id (not the supplier's message id). |
+| `decision` | The policy engine's outcome: `AUTO_ACCEPT`, `NEEDS_APPROVAL` or `BLOCKED`. |
+| `reasons` | Plain sentences written by the policy engine, at least one. |
+| `status` | `AUTO_APPROVED`, `PENDING`, `APPROVED`, `REJECTED` or `BLOCKED`. |
+| `order` | `NOT_SENT` until an `accept` goes out, then `SENDING`, then `INVOICED` (a payable exists), `REFUSED` (the supplier answered `reject`) or `FAILED` (no answer, or an `invoice` the café refused). |
+| `orderDetail` | Why the order was refused or failed, safe to show; otherwise `null`. |
+
+### Approving
+
+`POST /api/approvals/{id}` with `{"decision": "APPROVE"}` or `{"decision": "REJECT"}`.
+
+| Status | When |
+| --- | --- |
+| `200` | Decided. The body is the approval. On `APPROVE` the policy engine checks the order again with the current policy and time first; `order` is then `SENDING` and the result arrives as `recommendation.updated` and `payable.updated` events. |
+| `400` | A missing or unknown `decision`. |
+| `404` | Unknown approval. |
+| `409` | Not `PENDING` (already decided, or a double tap), or on `APPROVE` the policy engine now says `BLOCKED` (for example the quote expired or the limits changed). The approval is then stored as `BLOCKED` with the new reasons, and nothing is sent. |
+
+### Payable row
+
+```json
+{
+  "id": "7c6b5a49-3827-4e16-9d5c-4b3a29180f7e",
+  "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+  "supplier": { "domain": "roaster.test", "name": "Roaster & Co", "simulated": false },
+  "description": "50 kg green coffee beans from Brazil",
+  "paypalInvoiceId": "INV2-ABCD-1234-EFGH-5678",
+  "payerViewUrl": "https://www.sandbox.paypal.com/invoice/p/#INV2-ABCD-1234-EFGH-5678",
+  "total": { "amount": "541.50", "currency": "USD" },
+  "status": "SENT",
+  "createdAt": "2026-11-03T10:00:31Z",
+  "updatedAt": "2026-11-03T10:00:31Z"
+}
+```
+
+- `status` is S1's [invoice status](#invoice-row), as last reported by the supplier in `invoice` or `invoice.status`.
+- `payerViewUrl` is always a `https://www.sandbox.paypal.com/` link; the café refuses an invoice with any other.
+- `description` is written by the café from its own need, not taken from the supplier.
+
+### Policy
+
+```json
+{
+  "maxUnitPrice": { "amount": "15.00", "currency": "USD" },
+  "approvalAbove": { "amount": "500.00", "currency": "USD" },
+  "maxOrderTotal": { "amount": "2000.00", "currency": "USD" },
+  "updatedAt": "2026-11-03T09:00:00Z"
+}
+```
+
+Example: [policy.json](examples/policy.json). The body of `PUT /api/policy` is the same without `updatedAt`. Every amount is in USD, more than 0, in whole cents and at most 1000000.00. The policy engine is plain Java and checks every order before the café sends `accept`, in this order:
+
+| Rule | Outcome |
+| --- | --- |
+| The quote's currency isn't the policy's | `BLOCKED` |
+| The quote is past its `validUntil` | `BLOCKED` |
+| The unit price is above `maxUnitPrice`, or above the need's own `maxUnitPrice` | `BLOCKED` |
+| The total is above `maxOrderTotal` | `BLOCKED` |
+| The total is above `approvalAbove` | `NEEDS_APPROVAL` |
+| Otherwise | `AUTO_ACCEPT` |
+
+Every rule that applies adds a reason, and the strictest outcome wins. "Above" is strict: with `approvalAbove` at 500.00, a 500.00 order auto-accepts and a 500.01 order waits. The defaults (shown above) apply until the owner changes them.

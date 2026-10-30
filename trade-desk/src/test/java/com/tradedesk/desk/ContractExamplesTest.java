@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Stream;
 
 import com.tradedesk.desk.agent.AgentJson;
 import com.tradedesk.desk.agent.QuoteBody;
@@ -88,6 +90,35 @@ class ContractExamplesTest {
 		assertThat(row.rank()).isEqualTo(1);
 		assertThat(row.total().amount()).isEqualByComparingTo("570.00");
 		assertThat(json.writeValueAsString(row)).contains("\"quantity\":\"50\"");
+	}
+
+	@Test
+	void everyEnvelopeExampleIsAStrictEnvelope() throws IOException {
+		AgentJson agentJson = new AgentJson();
+		List<Path> envelopes = examples("envelope-");
+
+		assertThat(envelopes).hasSizeGreaterThanOrEqualTo(8);
+		for (Path file : envelopes) {
+			AgentEnvelope envelope = agentJson.envelope(Files.readString(file)).orElse(null);
+			assertThat(envelope).as(file.getFileName().toString()).isNotNull();
+			assertThat(envelope.type()).as(file.getFileName().toString()).isNotNull();
+			assertThat(envelope.body().isObject()).as(file.getFileName().toString()).isTrue();
+		}
+	}
+
+	@Test
+	void everyEventExampleHasATypeAndData() throws IOException {
+		for (Path file : examples("sse-")) {
+			JsonNode event = json.readTree(Files.readString(file));
+			assertThat(event.get("type").isString()).as(file.getFileName().toString()).isTrue();
+			assertThat(event.get("data").isObject()).as(file.getFileName().toString()).isTrue();
+		}
+	}
+
+	private static List<Path> examples(String prefix) throws IOException {
+		try (Stream<Path> files = Files.list(EXAMPLES)) {
+			return files.filter(f -> f.getFileName().toString().startsWith(prefix)).sorted().toList();
+		}
 	}
 
 	@Test
