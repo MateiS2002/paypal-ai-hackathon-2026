@@ -45,7 +45,10 @@ public record Approval(UUID id, UUID needId, UUID quoteId, QuoteRow.Supplier sup
 		/** The supplier answered {@code reject}. */
 		REFUSED,
 
-		/** No answer, or an invoice the café refused. */
+		/** The accept couldn't be sent or got no answer. The owner can send the same accept again. */
+		UNANSWERED,
+
+		/** An invoice the café refused, or an accept this desk can't send. Final: a retry would get the same. */
 		FAILED
 
 	}

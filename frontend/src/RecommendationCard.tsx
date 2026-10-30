@@ -116,10 +116,10 @@ export default function RecommendationCard({ desk, recommendation, onChange, onE
             </div>
           )}
           {ORDER[approval.order] && <p className="muted">{ORDER[approval.order]}</p>}
-          {(approval.order === 'REFUSED' || approval.order === 'FAILED') && (
+          {(approval.order === 'REFUSED' || approval.order === 'UNANSWERED' || approval.order === 'FAILED') && (
             <p className="error">{approval.orderDetail ?? 'The order did not go through.'}</p>
           )}
-          {approval.order === 'FAILED' && (approval.status === 'APPROVED' || approval.status === 'AUTO_APPROVED') && (
+          {approval.order === 'UNANSWERED' && (approval.status === 'APPROVED' || approval.status === 'AUTO_APPROVED') && (
             <div className="actions">
               <button disabled={busy} onClick={() => decide('APPROVE')}>
                 Try again

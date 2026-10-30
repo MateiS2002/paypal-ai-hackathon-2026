@@ -182,11 +182,11 @@ class NegotiationIntegrationTest {
 	}
 
 	@Test
-	void aFailedOrderCanBeSentAgainWithTheSameAccept() throws Exception {
+	void anUnansweredOrderCanBeSentAgainWithTheSameAccept() throws Exception {
 		SUPPLIERS.acceptDown = true;
 		try {
 			String needId = postNeed("46");
-			String failed = awaitRecommendation(needId, r -> "FAILED".equals(JsonPath.read(r, "$.approval.order")));
+			String failed = awaitRecommendation(needId, r -> "UNANSWERED".equals(JsonPath.read(r, "$.approval.order")));
 			assertThat(JsonPath.<String>read(failed, "$.approval.orderDetail")).contains("Try again");
 			assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).hasSize(OrderDesk.ACCEPT_TRIES);
 
@@ -207,12 +207,12 @@ class NegotiationIntegrationTest {
 	}
 
 	@Test
-	void aFailedOrderIsNotSentAgainOnceThePolicyBlocksIt() throws Exception {
+	void anUnansweredOrderIsNotSentAgainOnceThePolicyBlocksIt() throws Exception {
 		SUPPLIERS.acceptDown = true;
 		String approvalId;
 		try {
 			String needId = postNeed("46");
-			String failed = awaitRecommendation(needId, r -> "FAILED".equals(JsonPath.read(r, "$.approval.order")));
+			String failed = awaitRecommendation(needId, r -> "UNANSWERED".equals(JsonPath.read(r, "$.approval.order")));
 			approvalId = JsonPath.read(failed, "$.approval.id");
 		}
 		finally {
@@ -223,6 +223,21 @@ class NegotiationIntegrationTest {
 		decide(approvalId, "APPROVE").andExpect(status().isConflict());
 		Thread.sleep(300);
 		assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).hasSize(OrderDesk.ACCEPT_TRIES);
+	}
+
+	@Test
+	void aRefusedInvoiceFailsForGoodAndCantBeRetried() throws Exception {
+		SUPPLIERS.wrongTotal = true;
+		try {
+			String needId = postNeed("46");
+			String failed = awaitRecommendation(needId, r -> "FAILED".equals(JsonPath.read(r, "$.approval.order")));
+
+			decide(JsonPath.read(failed, "$.approval.id"), "APPROVE").andExpect(status().isConflict());
+			assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).hasSize(1);
+		}
+		finally {
+			SUPPLIERS.wrongTotal = false;
+		}
 	}
 
 	@Test
@@ -393,6 +408,9 @@ class NegotiationIntegrationTest {
 		/** When true, every accept gets HTTP 503, as from a supplier desk that is down. */
 		volatile boolean acceptDown;
 
+		/** When true, invoices come back one dollar over the agreed total, which the café refuses. */
+		volatile boolean wrongTotal;
+
 		/** When set, both suppliers offer at most this much (a partial offer for a larger need). */
 		volatile BigDecimal stock;
 
@@ -449,8 +467,9 @@ class NegotiationIntegrationTest {
 					String id = "INV2-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 					yield reply(in, AgentEnvelope.Type.INVOICE, new InvoiceBody(id,
 							"https://www.sandbox.paypal.com/invoice/p/#" + id,
-							new Money(quoted.quantity().multiply(quoted.price()).setScale(2, RoundingMode.HALF_UP),
-									"USD"),
+							new Money(quoted.quantity().multiply(quoted.price())
+								.add(wrongTotal ? BigDecimal.ONE : BigDecimal.ZERO)
+								.setScale(2, RoundingMode.HALF_UP), "USD"),
 							InvoiceStatus.SENT));
 				}
 				default -> throw new IllegalStateException("unexpected " + in.type());

@@ -152,11 +152,11 @@ public class NegotiationRepository {
 			.update();
 	}
 
-	/** Claims a failed order of an approved approval for one retry, so a double tap sends it once. */
+	/** Claims an unanswered order of an approved approval for one retry, so a double tap sends it once. */
 	public boolean retry(UUID id) {
 		return jdbc.sql("""
 				update approval set order_status = 'SENDING', order_detail = null
-				 where id = :id and order_status = 'FAILED' and status in ('APPROVED', 'AUTO_APPROVED')
+				 where id = :id and order_status = 'UNANSWERED' and status in ('APPROVED', 'AUTO_APPROVED')
 				""").param("id", id).update() == 1;
 	}
 

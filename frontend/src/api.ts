@@ -236,7 +236,7 @@ export type Approval = {
   decision: 'AUTO_ACCEPT' | 'NEEDS_APPROVAL' | 'BLOCKED'
   reasons: string[]
   status: 'AUTO_APPROVED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'BLOCKED'
-  order: 'NOT_SENT' | 'SENDING' | 'INVOICED' | 'REFUSED' | 'FAILED'
+  order: 'NOT_SENT' | 'SENDING' | 'INVOICED' | 'REFUSED' | 'UNANSWERED' | 'FAILED'
   orderDetail: string | null
   createdAt: string
   decidedAt: string | null
