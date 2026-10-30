@@ -151,6 +151,7 @@ class RfqHandlerTest {
 	void noteCleanupKeepsOneShortLine() {
 		assertThat(QuoteNoteWriter.clean("\"Hello\"\nsecond line")).isEqualTo("Hello");
 		assertThat(QuoteNoteWriter.clean("x".repeat(500))).hasSize(QuoteNoteWriter.MAX_NOTE);
+		assertThat(QuoteNoteWriter.clean("Fresh\u2028Santos.\u2029Ready\u0085now")).isEqualTo("Fresh Santos. Ready now");
 	}
 
 }
