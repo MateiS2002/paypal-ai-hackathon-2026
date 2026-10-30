@@ -164,7 +164,7 @@ Example: [envelope-invoice.json](examples/envelope-invoice.json).
 | --- | --- | --- |
 | `paypalInvoiceId` | string | As in `invoice`. |
 | `status` | string | S1's status enum. |
-| `updatedAt` | date-time | When the supplier saw the change. The buyer ignores a status older than the one it holds, so messages that arrive out of order can't move an invoice back. |
+| `updatedAt` | date-time | When the supplier saw the change. The buyer ignores a status that isn't strictly newer than the one it holds (an equal `updatedAt` counts as stale), so messages that arrive out of order can't move an invoice back. |
 
 The supplier's invoice poller sends this whenever a `NEGOTIATION` invoice's status changes, and keeps retrying until the buyer has answered. It only sends to buyer desks it knows (`DESK_BUYERS`, [README](README.md#environment-variables)), never to an address taken from a message. The buyer ignores (answers `reject`) a status for an invoice id it doesn't hold, or from a desk that isn't that invoice's supplier. Until S5, `from` is only claimed, so this message is unauthenticated: S5's `invoice:notify` scope and envelope signature close that gap. Example: [envelope-invoice-status.json](examples/envelope-invoice-status.json).
 

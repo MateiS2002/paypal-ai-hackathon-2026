@@ -248,7 +248,7 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 
 | Field | Rule |
 | --- | --- |
-| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote was left to pick (none arrived, all expired, or none answered its counter). |
+| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote is eligible to pick (none arrived, all expired, or every remaining one ended in `NO_ANSWER`; a quote that was never countered stays eligible). |
 | `pick` | The [quote row](#quote-row) Java ranked first among quotes still within `validUntil` whose counter didn't end in `NO_ANSWER` (the supplier may have replaced such a quote, so it may no longer be acceptable), or `null` before `READY`. |
 | `reason` | One line, at most 200 characters, display text only. `null` before `READY`. |
 | `reasonSource` | `AI` when the buyer agent wrote the reason and it passed the checks, `TEMPLATE` when the desk's code wrote it (no LLM, a failed call, or an answer that failed the checks: it picked another supplier, didn't start with `S1:`, used an unknown label or was too long). |
