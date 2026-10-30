@@ -231,7 +231,7 @@ Once every supplier has answered the RFQ (the need is `COMPLETE`), the café's b
 | `NEEDS_APPROVAL` | `approval.needed`; nothing reaches the supplier until the owner taps Approve. |
 | `BLOCKED` | Nothing is ever sent. The reasons are shown; the owner can change the policy and post the need again. |
 
-The LLM proposes counter targets and writes the one-line reason, nothing else. Java clamps the targets, picks the winner and makes the decision. The reason is checked for form, not meaning: it must name Java's pick as `S1`, start with `S1:`, use only labels that exist and fit in one line, or a template replaces it. A sentence that passes can still praise another supplier; it is display text only, and what gets acted on is Java's pick.
+The LLM proposes counter targets and writes the one-line reason, nothing else. Java clamps the targets, picks the winner and makes the decision. The reason is checked for form, not meaning: the buyer agent's answer must name Java's pick as `S1`, start with `S1:`, use only labels that exist and fit in one line, or a template replaces it. The desk then puts the supplier names back in place of the labels, so the published `reason` starts with the pick's name (as in the examples below). A sentence that passes can still praise another supplier; it is display text only, and what gets acted on is Java's pick.
 
 ### Recommendation
 
