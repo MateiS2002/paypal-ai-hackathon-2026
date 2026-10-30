@@ -92,7 +92,9 @@ public class AcceptHandler {
 			// Accepted before, perhaps under another message id: the same invoice again, never a second one.
 			return invoiceReply(accept, quote.invoiceId());
 		}
-		String refusal = refusal(quote);
+		// An invoice already started for this quote is resumed on its stored terms: the quote may have expired or the
+		// stock changed since the first attempt, and that must not turn a PayPal hiccup into a final reject.
+		String refusal = invoiceRecords.findOperation(invoiceKey(quote.messageId())).isPresent() ? null : refusal(quote);
 		if (refusal != null) {
 			log.info("Refused an accept from {} for quote {}: {}", accept.from(), quote.messageId(), refusal);
 			return replies.reject(accept, refusal);

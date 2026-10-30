@@ -237,6 +237,26 @@ class SupplierNegotiationIntegrationTest {
 		assertThat(JsonPath.<String>read(invoice, "$.body.paypalInvoiceId")).isEqualTo(payPalId);
 	}
 
+	@Test
+	void aStartedInvoiceIsResumedEvenAfterTheQuoteExpired() throws Exception {
+		UUID conversation = UUID.randomUUID();
+		String quoteId = JsonPath.read(send(rfq(conversation)), "$.messageId");
+		String revisedId = JsonPath.read(send(counter(conversation, quoteId, "9.00")), "$.messageId");
+		// The draft is stored, then PayPal fails.
+		PAYPAL.stubFor(post("/v2/invoicing/invoices").willReturn(aResponse().withStatus(503)));
+		String accept = accept(conversation, revisedId, "cafe.test");
+		mvc.perform(MockMvcRequestBuilders.post("/agent/messages")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(accept)).andExpect(status().isServiceUnavailable());
+
+		// The retry arrives after the quote's validity ended: the stored invoice is still resumed, not rejected.
+		CLOCK.now = CLOCK.now.plus(RfqHandler.QUOTE_VALID_FOR).plusSeconds(1);
+		PAYPAL.stubFor(post("/v2/invoicing/invoices").willReturn(okJson(invoice("DRAFT")).withStatus(201)));
+		String invoice = send(accept);
+		assertThat(type(invoice)).isEqualTo("invoice");
+		assertThat(JsonPath.<String>read(invoice, "$.body.paypalInvoiceId")).isEqualTo(payPalId);
+	}
+
 	private String send(String envelope) throws Exception {
 		return mvc.perform(MockMvcRequestBuilders.post("/agent/messages")
 			.contentType(MediaType.APPLICATION_JSON)
