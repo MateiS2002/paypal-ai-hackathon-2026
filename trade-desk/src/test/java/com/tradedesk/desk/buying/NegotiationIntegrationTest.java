@@ -166,6 +166,11 @@ class NegotiationIntegrationTest {
 			.andExpect(jsonPath("$.body.status").value("PAID"));
 		agentStatus("roaster.test", needId, payPalId, "SENT", "2098-01-01T00:00:00Z")
 			.andExpect(jsonPath("$.body.status").value("PAID"));
+		// A newer repeat of PAID moves the held time on, so a SENT report in between can't bring the status back.
+		agentStatus("roaster.test", needId, payPalId, "PAID", "2099-06-01T00:00:00Z")
+			.andExpect(jsonPath("$.body.status").value("PAID"));
+		agentStatus("roaster.test", needId, payPalId, "SENT", "2099-03-01T00:00:00Z")
+			.andExpect(jsonPath("$.body.status").value("PAID"));
 		mvc.perform(get("/api/payables").with(user("cafe")))
 			.andExpect(jsonPath("$[?(@.paypalInvoiceId == '" + payPalId + "')].status").value("PAID"));
 	}

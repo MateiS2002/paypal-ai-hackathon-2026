@@ -70,17 +70,26 @@ public class PayableRepository {
 
 	/**
 	 * Records the supplier's report if it is newer than the one held, so reports that arrive out of order can't move
-	 * an invoice back. True if the status changed.
+	 * an invoice back. Every newer report advances the held time, even when the status is the same, so an older report
+	 * that arrives after it can't win. One statement: the row is locked while the old status is read, so a concurrent
+	 * newer report can't slip in between. True if the status changed.
 	 */
 	public boolean updateStatus(UUID id, InvoiceStatus status, Instant statusAt) {
 		return jdbc.sql("""
-				update payable set status = :status, status_at = :statusAt, updated_at = now()
-				 where id = :id and status_at < :statusAt and status <> :status
+				with old as (select id, status from payable where id = :id for update)
+				update payable p
+				   set status = :status, status_at = :statusAt,
+				       updated_at = case when old.status <> :status then now() else p.updated_at end
+				  from old
+				 where p.id = old.id and p.status_at < :statusAt
+				returning old.status <> :status
 				""")
 			.param("status", status.name())
 			.param("statusAt", Timestamp.from(statusAt))
 			.param("id", id)
-			.update() == 1;
+			.query(Boolean.class)
+			.optional()
+			.orElse(false);
 	}
 
 	public Optional<PayableRow> find(UUID id) {
