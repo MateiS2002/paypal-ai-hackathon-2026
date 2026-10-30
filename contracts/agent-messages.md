@@ -98,7 +98,7 @@ A `quote`, `reject` or `invoice` sent as a request, rather than as a reply, gets
 | Field | Type | Rule |
 | --- | --- | --- |
 | `quoteId` | UUID | The `messageId` of the supplier's `quote` being countered. |
-| `unitPrice` | Money | The buyer's target, in whole cents and the quote's currency, and lower than the quote's `unitPrice`. The buyer agent proposes it; the café's Java code clamps it to at most the quote's price and at most the café's `maxUnitPrice` before it is sent. |
+| `unitPrice` | Money | The buyer's target, in whole cents and the quote's currency, and lower than the quote's `unitPrice`. The buyer agent proposes it; the café's Java code rounds it down to the cent and clamps it to at most the café's `maxUnitPrice` and the need's own budget. If the result isn't strictly below the quote's `unitPrice`, no counter is sent for that quote. |
 
 The supplier decides in Java, never in a prompt, and never goes below its floor price:
 
@@ -116,7 +116,7 @@ The same body as an S2 [`quote`](#quote-supplier-to-buyer-reply-to-rfq-s2), plus
 | --- | --- | --- |
 | `revises` | UUID | The `quoteId` of the counter. Absent or `null` on an S2 quote. |
 
-`rfqId`, `supplierName`, `simulated`, `quantity`, `unit` and `deliveryDate` must equal the quote it revises; only `unitPrice`, `availableQuantity`, `validUntil` and `note` may change. `unitPrice` is at most the old price. The revised quote replaces the old one: from then on the buyer accepts the revised quote's `messageId`, and the supplier refuses to accept the old one. The café drops and logs a revised quote that breaks any of these rules, and the old quote stands. Example: [envelope-quote-revised.json](examples/envelope-quote-revised.json).
+`rfqId`, `supplierName`, `simulated`, `quantity`, `unit` and `deliveryDate` must equal the quote it revises; only `unitPrice`, `availableQuantity`, `validUntil` and `note` may change. `unitPrice` is at most the old price. The revised quote replaces the old one: from then on the buyer accepts the revised quote's `messageId`, and the supplier refuses to accept the old one. The café drops and logs a revised quote that breaks any of these rules. The supplier may already have replaced the old quote by then, so the café never picks a quote whose counter got a dropped answer or no answer at all (counter outcome `NO_ANSWER`); only a `reject` leaves the old quote standing. Example: [envelope-quote-revised.json](examples/envelope-quote-revised.json).
 
 ### `accept` (buyer to supplier)
 
@@ -132,7 +132,7 @@ The same body as an S2 [`quote`](#quote-supplier-to-buyer-reply-to-rfq-s2), plus
 | `quoteId` | UUID | The `messageId` of the quote being accepted: the revised quote if there was one. |
 | `billTo` | object | Who the PayPal invoice goes to: `name` 1 to 100 characters, `email` a valid address. The café sends its own name and `PAYPAL_SANDBOX_BUYER_EMAIL`. It only reaches the supplier it accepts. |
 
-The supplier re-checks, in Java, that the quote is its own latest quote for this buyer, still within `validUntil`, still at or above its floor price, and still in stock. If all hold it creates and sends a PayPal invoice with `source = NEGOTIATION`, linked to the `conversationId`, and answers `invoice`. Otherwise it answers `reject` with the reason (for example an expired quote) and creates no invoice. Accepting the same quote again, with any `messageId`, returns the same invoice: one quote never gets two invoices. Examples: [envelope-accept.json](examples/envelope-accept.json), and the refusal of an expired quote, [envelope-reject-expired.json](examples/envelope-reject-expired.json).
+The supplier re-checks, in Java, that the quote is its own latest quote for this buyer, still within `validUntil`, still at or above its floor price, and still in stock. If all hold it creates and sends a PayPal invoice with `source = NEGOTIATION`, linked to the `conversationId`, and answers `invoice`. Otherwise it answers `reject` with the reason (for example an expired quote) and creates no invoice. Accepting the same quote again, with any `messageId`, returns the same invoice: one quote never gets two invoices. Examples: [envelope-accept.json](examples/envelope-accept.json), and the refusal of a different accept that arrived after its quote had expired, [envelope-reject-expired.json](examples/envelope-reject-expired.json).
 
 ### `invoice` (supplier to buyer, reply to `accept`)
 

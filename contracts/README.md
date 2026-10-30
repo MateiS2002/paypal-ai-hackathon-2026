@@ -32,7 +32,7 @@ Secrets live in `.env` (gitignored), with placeholders in [`.env.example`](../.e
 | Variable | Used by | Notes |
 | --- | --- | --- |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | roaster | Sandbox REST app. The base URL is a constant `https://api-m.sandbox.paypal.com` in code, not a variable, so nothing can point it at live. |
-| `PAYPAL_SIM_CLIENT_ID`, `PAYPAL_SIM_CLIENT_SECRET` | simulated suppliers | One shared sandbox merchant for every SIMULATED supplier. Compose passes them to `supplier-b`, `supplier-c` and `supplier-d` as their `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` (S3), so their invoices come from this merchant. |
+| `PAYPAL_SIM_CLIENT_ID`, `PAYPAL_SIM_CLIENT_SECRET` | simulated suppliers | One shared sandbox merchant for every SIMULATED supplier. From the S3 code PR on, `docker-compose.yml` passes them to `supplier-b`, `supplier-c` and `supplier-d` as their `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`, so their invoices come from this merchant. |
 | `PAYPAL_SANDBOX_BUYER_EMAIL` | café, roaster | The sandbox buyer account that receives invoices. The roaster seeds it as the customer Bean There; the café sends it as `billTo` in every `accept` (S3). |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | desks, registry | Model defaults to GPT-6 Luna. |
 | `POSTGRES_PASSWORD` | postgres, desks, registry | Required. |
@@ -53,4 +53,4 @@ Per-desk settings that aren't secret are set per service in [`docker-compose.yml
 | `DESK_PERSONA` | `fast-pricey` | Which seeded catalogue a supplier desk sells from (S2): `roaster` (the real roaster), or the SIMULATED personas `fast-pricey`, `cheap-slow`, `low-stock`. Empty means the desk sells nothing and rejects every RFQ (the café). |
 | `DESK_PEERS` | `roaster.test=http://roaster:8080` | Buyer desks only (S2): comma-separated `domain=base URL` pairs of the suppliers that get each RFQ. The domain goes in the envelope's `to`; the URL is where `POST /agent/messages` is sent inside compose. S4 replaces this list with a registry lookup. |
 | `DESK_SIMULATED` | `false` | `true` for SIMULATED suppliers. |
-| `DESK_BUYERS` | `cafe.test=http://cafe:8080` | Supplier desks only (S3): comma-separated `domain=base URL` pairs of the buyer desks this supplier may send `invoice.status` to, in the same format as `DESK_PEERS`. A buyer not in the list gets no status pushes; the supplier never sends to an address taken from a message. S4 replaces this list with a registry lookup. |
+| `DESK_BUYERS` | `cafe.test=http://cafe:8080` | Supplier desks only (S3): comma-separated `domain=base URL` pairs of the buyer desks this supplier may send `invoice.status` to, in the same format as `DESK_PEERS`. A buyer not in the list gets no status pushes; the supplier never sends to an address taken from a message. Set on the roaster and the SIMULATED suppliers in `docker-compose.yml` from the S3 code PR on. S4 replaces this list with a registry lookup. |

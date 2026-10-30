@@ -248,8 +248,8 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 
 | Field | Rule |
 | --- | --- |
-| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote was left to pick (none arrived, or all expired). |
-| `pick` | The [quote row](#quote-row) Java ranked first among quotes still within `validUntil`, or `null` before `READY`. |
+| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote was left to pick (none arrived, all expired, or none answered its counter). |
+| `pick` | The [quote row](#quote-row) Java ranked first among quotes still within `validUntil` whose counter didn't end in `NO_ANSWER` (the supplier may have replaced such a quote, so it may no longer be acceptable), or `null` before `READY`. |
 | `reason` | One line, at most 200 characters, display text only. `null` before `READY`. |
 | `reasonSource` | `AI` when the buyer agent wrote the reason and it passed the checks, `TEMPLATE` when the desk's code wrote it (no LLM, a failed call, or an answer that named another supplier). |
 | `approval` | The need's [approval](#approval), or `null` before `READY`. |
@@ -313,6 +313,7 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 - `status` is S1's [invoice status](#invoice-row), as last reported by the supplier in `invoice` or `invoice.status`.
 - `payerViewUrl` is always a `https://www.sandbox.paypal.com/` link; the café refuses an invoice with any other.
 - `description` is written by the café from its own need, not taken from the supplier.
+- The café can't read another merchant's PayPal invoice, so it can't check the amount behind `payerViewUrl` itself. It checks the `invoice` reply's `total` against the accepted quote, and the UI shows that agreed total and `paypalInvoiceId` next to the pay link, so the owner can compare them with PayPal's page before paying. S5's signed envelopes tie the reply to the supplier.
 
 ### Policy
 
@@ -325,15 +326,17 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 }
 ```
 
-Example: [policy.json](examples/policy.json). The body of `PUT /api/policy` is the same without `updatedAt`. Every amount is in USD, more than 0, in whole cents and at most 1000000.00. The policy engine is plain Java and checks every order before the café sends `accept`, in this order:
+Example: [policy.json](examples/policy.json). The body of `PUT /api/policy` is the same without `updatedAt`. Every amount is in USD, more than 0, in whole cents and at most 1000000.00. `maxUnitPrice` is **per kg**: for a need in `lb` the engine converts the quote's price to per kg (1 lb = 0.45359237 kg) before comparing, and caps counter targets at the same limit per lb. The need's own `maxUnitPrice` is in the need's unit. The policy engine is plain Java and checks every order before the café sends `accept`, in this order:
 
 | Rule | Outcome |
 | --- | --- |
 | The quote's currency isn't the policy's | `BLOCKED` |
+| The total isn't `quantity × unitPrice`, rounded half-up to the cent | `BLOCKED` |
 | The quote is past its `validUntil` | `BLOCKED` |
 | The unit price is above `maxUnitPrice`, or above the need's own `maxUnitPrice` | `BLOCKED` |
 | The total is above `maxOrderTotal` | `BLOCKED` |
 | The total is above `approvalAbove` | `NEEDS_APPROVAL` |
+| The offer is for less than the need's quantity (a partial offer) | `NEEDS_APPROVAL` |
 | Otherwise | `AUTO_ACCEPT` |
 
 Every rule that applies adds a reason, and the strictest outcome wins. "Above" is strict: with `approvalAbove` at 500.00, a 500.00 order auto-accepts and a 500.01 order waits. The defaults (shown above) apply until the owner changes them.
