@@ -119,6 +119,13 @@ export default function RecommendationCard({ desk, recommendation, onChange, onE
           {(approval.order === 'REFUSED' || approval.order === 'FAILED') && (
             <p className="error">{approval.orderDetail ?? 'The order did not go through.'}</p>
           )}
+          {approval.order === 'FAILED' && (approval.status === 'APPROVED' || approval.status === 'AUTO_APPROVED') && (
+            <div className="actions">
+              <button disabled={busy} onClick={() => decide('APPROVE')}>
+                Try again
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

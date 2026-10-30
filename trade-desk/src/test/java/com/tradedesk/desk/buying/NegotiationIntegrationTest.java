@@ -182,6 +182,50 @@ class NegotiationIntegrationTest {
 	}
 
 	@Test
+	void aFailedOrderCanBeSentAgainWithTheSameAccept() throws Exception {
+		SUPPLIERS.acceptDown = true;
+		try {
+			String needId = postNeed("46");
+			String failed = awaitRecommendation(needId, r -> "FAILED".equals(JsonPath.read(r, "$.approval.order")));
+			assertThat(JsonPath.<String>read(failed, "$.approval.orderDetail")).contains("Try again");
+			assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).hasSize(OrderDesk.ACCEPT_TRIES);
+
+			SUPPLIERS.acceptDown = false;
+			decide(JsonPath.read(failed, "$.approval.id"), "APPROVE").andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("AUTO_APPROVED"));
+			awaitRecommendation(needId, r -> "INVOICED".equals(JsonPath.read(r, "$.approval.order")));
+
+			// Every try is the same message, so a supplier that already invoiced it returns the stored invoice.
+			assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).extracting(AgentEnvelope::messageId)
+				.hasSize(OrderDesk.ACCEPT_TRIES + 1)
+				.containsOnly(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT).getFirst().messageId());
+			decide(JsonPath.read(failed, "$.approval.id"), "APPROVE").andExpect(status().isConflict());
+		}
+		finally {
+			SUPPLIERS.acceptDown = false;
+		}
+	}
+
+	@Test
+	void aFailedOrderIsNotSentAgainOnceThePolicyBlocksIt() throws Exception {
+		SUPPLIERS.acceptDown = true;
+		String approvalId;
+		try {
+			String needId = postNeed("46");
+			String failed = awaitRecommendation(needId, r -> "FAILED".equals(JsonPath.read(r, "$.approval.order")));
+			approvalId = JsonPath.read(failed, "$.approval.id");
+		}
+		finally {
+			SUPPLIERS.acceptDown = false;
+		}
+		policy("10.00", "500.00", "2000.00").andExpect(status().isOk());
+
+		decide(approvalId, "APPROVE").andExpect(status().isConflict());
+		Thread.sleep(300);
+		assertThat(SUPPLIERS.sent(AgentEnvelope.Type.ACCEPT)).hasSize(OrderDesk.ACCEPT_TRIES);
+	}
+
+	@Test
 	void aBlockedOrderIsNeverSentAndCantBeApproved() throws Exception {
 		policy("10.00", "500.00", "2000.00").andExpect(status().isOk());
 
@@ -346,6 +390,9 @@ class NegotiationIntegrationTest {
 		/** When true, the roaster answers a counter with a revision dearer than its quote, which the café drops. */
 		volatile boolean brokenRevision;
 
+		/** When true, every accept gets HTTP 503, as from a supplier desk that is down. */
+		volatile boolean acceptDown;
+
 		/** When set, both suppliers offer at most this much (a partial offer for a larger need). */
 		volatile BigDecimal stock;
 
@@ -372,6 +419,9 @@ class NegotiationIntegrationTest {
 		private Reply answer(String raw) {
 			AgentEnvelope in = json.envelope(raw).orElseThrow();
 			sent.add(in);
+			if (acceptDown && in.type() == AgentEnvelope.Type.ACCEPT) {
+				return new Reply(503, "", null);
+			}
 			boolean roaster = in.to().equals("roaster.test");
 			AgentEnvelope out = switch (in.type()) {
 				case RFQ -> {

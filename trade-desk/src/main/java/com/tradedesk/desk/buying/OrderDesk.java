@@ -134,12 +134,17 @@ public class OrderDesk {
 	}
 
 	/**
-	 * The owner's tap. Approve asks the policy engine again first, with the current policy and time.
+	 * The owner's tap. Approve asks the policy engine again first, with the current policy and time. Approve on an
+	 * approved order that {@code FAILED} sends the same accept again, after the same check.
 	 * @throws ApprovalNotFoundException for an unknown approval
-	 * @throws NegotiationConflictException if it isn't pending, or the engine now says {@code BLOCKED}
+	 * @throws NegotiationConflictException if it isn't pending (or a failed order to retry), or the engine now says
+	 * {@code BLOCKED}
 	 */
 	public Approval approve(UUID approvalId, Decision decision) {
 		Approval approval = negotiations.approval(approvalId).orElseThrow(ApprovalNotFoundException::new);
+		if (decision == Decision.APPROVE && retryable(approval)) {
+			return retry(approval);
+		}
 		if (approval.status() != Approval.Status.PENDING) {
 			throw new NegotiationConflictException("This approval was already decided ("
 					+ approval.status().name().toLowerCase(Locale.ROOT).replace('_', ' ') + ").");
@@ -165,6 +170,29 @@ public class OrderDesk {
 		log.info("Owner approved approval {}", approvalId);
 		send(approvalId);
 		return negotiations.approval(approvalId).orElseThrow();
+	}
+
+	private static boolean retryable(Approval approval) {
+		return approval.order() == Approval.Order.FAILED && (approval.status() == Approval.Status.APPROVED
+				|| approval.status() == Approval.Status.AUTO_APPROVED);
+	}
+
+	/**
+	 * Sends a failed accept again, with its stored message id, so a supplier that already invoiced it returns the same
+	 * invoice. The policy engine is asked again first; a {@code BLOCKED} answer sends nothing and leaves it failed.
+	 */
+	private Approval retry(Approval approval) {
+		NeedRow need = needs.find(approval.needId()).orElseThrow();
+		PolicyDecision now = evaluate(need, pick(need, approval.quoteId()));
+		if (now.outcome() == PolicyDecision.Outcome.BLOCKED) {
+			throw new NegotiationConflictException("This order can't be sent: " + String.join(" ", now.reasons()));
+		}
+		if (!negotiations.retry(approval.id())) {
+			throw new NegotiationConflictException("This order is already being sent again.");
+		}
+		log.info("Owner retried the failed order for approval {}", approval.id());
+		send(approval.id());
+		return negotiations.approval(approval.id()).orElseThrow();
 	}
 
 	public List<PayableRow> payables() {
@@ -197,7 +225,7 @@ public class OrderDesk {
 			}
 			catch (RuntimeException ex) {
 				log.warn("Accept for approval {} failed: {}", approvalId, ex.toString());
-				fail(approval, "The accept couldn't be sent. Try again later.");
+				fail(approval, "The accept couldn't be sent. Tap Try again to resend it.");
 			}
 		});
 	}
@@ -232,7 +260,7 @@ public class OrderDesk {
 			String problem = reply.failure() != null ? "unreachable (" + reply.failure() + ")"
 					: "answered HTTP " + reply.status();
 			conversations.refused(null, approval.needId(), reply.body() == null ? "" : reply.body(), problem);
-			fail(approval, "The supplier didn't answer the accept. Try again later.");
+			fail(approval, "The supplier didn't answer the accept. Tap Try again to resend it.");
 			return;
 		}
 		switch (InvoiceReplyCheck.check(json, reply.body(), accept, ref.supplierDomain(), approval.total())) {

@@ -152,6 +152,14 @@ public class NegotiationRepository {
 			.update();
 	}
 
+	/** Claims a failed order of an approved approval for one retry, so a double tap sends it once. */
+	public boolean retry(UUID id) {
+		return jdbc.sql("""
+				update approval set order_status = 'SENDING', order_detail = null
+				 where id = :id and order_status = 'FAILED' and status in ('APPROVED', 'AUTO_APPROVED')
+				""").param("id", id).update() == 1;
+	}
+
 	/** Approvals whose accept was in flight when the desk stopped. */
 	public List<UUID> sending() {
 		return jdbc.sql("select id from approval where order_status = 'SENDING'").query(UUID.class).list();

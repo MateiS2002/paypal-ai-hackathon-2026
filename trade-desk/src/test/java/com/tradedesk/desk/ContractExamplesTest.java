@@ -7,8 +7,13 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 
+import com.tradedesk.desk.agent.AcceptBody;
 import com.tradedesk.desk.agent.AgentJson;
+import com.tradedesk.desk.agent.CounterBody;
+import com.tradedesk.desk.agent.InvoiceBody;
+import com.tradedesk.desk.agent.InvoiceStatusBody;
 import com.tradedesk.desk.agent.QuoteBody;
+import com.tradedesk.desk.agent.RejectBody;
 import com.tradedesk.desk.agent.RfqBody;
 import com.tradedesk.desk.contract.AgentEnvelope;
 import com.tradedesk.desk.contract.Money;
@@ -103,6 +108,17 @@ class ContractExamplesTest {
 			assertThat(envelope).as(file.getFileName().toString()).isNotNull();
 			assertThat(envelope.type()).as(file.getFileName().toString()).isNotNull();
 			assertThat(envelope.body().isObject()).as(file.getFileName().toString()).isTrue();
+			// The strict body parser, so a renamed or unknown field in an example fails here.
+			Class<?> bodyType = switch (envelope.type()) {
+				case RFQ -> RfqBody.class;
+				case QUOTE -> QuoteBody.class;
+				case COUNTER -> CounterBody.class;
+				case ACCEPT -> AcceptBody.class;
+				case REJECT -> RejectBody.class;
+				case INVOICE -> InvoiceBody.class;
+				case INVOICE_STATUS -> InvoiceStatusBody.class;
+			};
+			assertThat(agentJson.body(envelope.body(), bodyType)).as(file.getFileName().toString()).isPresent();
 		}
 	}
 

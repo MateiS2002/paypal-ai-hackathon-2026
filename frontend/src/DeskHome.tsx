@@ -34,6 +34,15 @@ function upsert<T extends { id: string }>(rows: T[], row: T): T[] {
 }
 
 /**
+ * Like upsert, but keeps the row already there when it is at least as new. A payable reload can return after a newer
+ * event, and an event delivered before a reconnect can be older than the reload, so neither side always wins.
+ */
+function upsertNewer(rows: PayableRow[], row: PayableRow): PayableRow[] {
+  const existing = rows.find((r) => r.id === row.id)
+  return existing && Date.parse(existing.updatedAt) >= Date.parse(row.updatedAt) ? rows : upsert(rows, row)
+}
+
+/**
  * Quote lists only grow, and each event carries the need's whole ranked list. So when a reload and an event race,
  * the longer list is the newer one.
  */
@@ -103,7 +112,7 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
   const reloadPayables = useCallback(() => {
     if (!buys) return
     listPayables(desk)
-      .then((found) => setPayables((current) => current.reduce(upsert, found)))
+      .then((found) => setPayables((current) => current.reduce(upsertNewer, found)))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [buys, desk])
 
@@ -167,7 +176,7 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
       }
       if (event.type === 'payable.updated') {
         const payable = event.data as PayableRow
-        setPayables((current) => upsert(current, payable))
+        setPayables((current) => upsertNewer(current, payable))
         return
       }
       if (event.type !== 'invoice.updated') return
