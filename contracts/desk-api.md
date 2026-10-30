@@ -279,7 +279,7 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 | `decision` | The policy engine's outcome: `AUTO_ACCEPT`, `NEEDS_APPROVAL` or `BLOCKED`. |
 | `reasons` | Plain sentences written by the policy engine, at least one. |
 | `status` | `AUTO_APPROVED`, `PENDING`, `APPROVED`, `REJECTED` or `BLOCKED`. |
-| `order` | `NOT_SENT` until an `accept` goes out, then `SENDING`, then `INVOICED` (a payable exists), `REFUSED` (the supplier answered `reject`), `UNANSWERED` (the `accept` couldn't be sent or got no answer; the owner can retry it) or `FAILED` (final: an `invoice` the café refused, or an `accept` this desk can't send, such as a quote it can no longer reach). |
+| `order` | `NOT_SENT` until an `accept` goes out, then `SENDING`, then `INVOICED` (a payable exists), `REFUSED` (the supplier answered `reject`), `UNANSWERED` (the `accept` couldn't be sent or got no answer, including a `503` from a supplier whose PayPal call failed; the owner can retry it) or `FAILED` (final: an `invoice` the café refused, or an `accept` this desk can't send, such as a quote it can no longer reach). |
 | `orderDetail` | Why the order was refused or failed, safe to show; otherwise `null`. |
 
 ### Approving
