@@ -169,13 +169,15 @@ public class InvoiceRepository {
 
 	/**
 	 * Negotiation invoices whose buyer hasn't acknowledged the current status yet, oldest change first. Read from the
-	 * database each round, so a status the buyer missed (its desk was down) is sent again.
+	 * database each round, so a status the buyer missed (its desk was down) is sent again. Only invoices the buyer
+	 * already knows from the accept's {@code invoice} reply ({@code buyer_notified_status} set): one still being
+	 * created is the reply's job, not this push's.
 	 */
 	public List<BuyerUpdate> findBuyerUpdates() {
 		return jdbc.sql("""
 				select id, paypal_invoice_id, status, updated_at, conversation_id, buyer_domain from invoice
 				 where source = 'NEGOTIATION' and buyer_domain is not null and paypal_invoice_id is not null
-				   and buyer_notified_status is distinct from status
+				   and buyer_notified_status is not null and buyer_notified_status <> status
 				 order by updated_at
 				""")
 			.query((rs, n) -> new BuyerUpdate(rs.getObject("id", UUID.class), rs.getString("paypal_invoice_id"),

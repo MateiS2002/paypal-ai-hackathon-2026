@@ -23,6 +23,9 @@ import org.springframework.stereotype.Component;
  * from the message; {@link CounterPricer} decides the new price in Java against today's floor; the answer is a revised
  * {@code quote} with only the price, stock, expiry and note changed, or a {@code reject} that leaves the quote as it
  * was. No LLM is involved: the note is a template. One counter per quote: a revised quote can't be countered again.
+ *
+ * <p>TODO S5: {@code from} is only claimed until S5. Require a registry token with scope {@code quote:counter} and
+ * aud = this desk, and a signed envelope whose {@code from} matches it, before trusting the buyer check below.
  */
 @Component
 public class CounterHandler {

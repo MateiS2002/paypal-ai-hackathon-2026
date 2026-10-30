@@ -35,6 +35,10 @@ import org.springframework.stereotype.Component;
  *
  * <p>The invoice's idempotency key is derived from the quote, so accepting the same quote again, with any message id,
  * returns the same invoice: one quote never gets two.
+ *
+ * <p>TODO S5: {@code from} is only claimed until S5, so a local process could accept a quote it asked for itself.
+ * Require a registry token with scope {@code quote:accept} and aud = this desk, and a signed envelope whose
+ * {@code from} matches it, before creating any invoice.
  */
 @Component
 public class AcceptHandler {

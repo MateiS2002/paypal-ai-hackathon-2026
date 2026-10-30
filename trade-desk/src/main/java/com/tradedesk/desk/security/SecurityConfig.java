@@ -36,7 +36,8 @@ public class SecurityConfig {
 	 * credential for a CSRF token to protect, so the token check is skipped for /agent/** only; instead
 	 * {@link RefuseBrowserRequests} refuses anything a browser sends cross-site.
 	 * TODO S5: require scoped token. Replace permitAll with a resource server that checks the registry-signed token,
-	 * its aud and the scope for the envelope type. Until then /agent/** is only reachable inside the compose network
+	 * its aud and the scope for the envelope type (rfq:send, quote:counter, quote:accept, invoice:notify). Until then
+	 * /agent/** is only reachable inside the compose network
 	 * and from this machine's 127.0.0.1 ports.
 	 */
 	@Bean
