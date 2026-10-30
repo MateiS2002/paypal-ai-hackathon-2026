@@ -12,8 +12,8 @@ import com.tradedesk.desk.need.QuoteValidator;
 
 /**
  * Checks a supplier's answer to an {@code accept} before the café records anything (contracts/agent-messages.md): the
- * right sender and conversation, an {@code invoice} body that fits exactly, a PayPal sandbox pay link and nothing
- * else, and the total the café agreed to, to the cent. A supplier can't send the owner to a look-alike page or bill
+ * right sender and conversation, an {@code invoice} body that fits exactly, a PayPal sandbox pay link for that same
+ * invoice and nothing else, and the total the café agreed to, to the cent. A supplier can't send the owner to a look-alike page or bill
  * more than the accepted quote.
  */
 public final class InvoiceReplyCheck {
@@ -63,6 +63,9 @@ public final class InvoiceReplyCheck {
 		if (!isPayPalSandboxLink(invoice.payerViewUrl())) {
 			return new Dropped(reply, "payerViewUrl is not a https://" + PAY_HOST + "/ link");
 		}
+		if (!namesInvoice(invoice.payerViewUrl(), invoice.paypalInvoiceId())) {
+			return new Dropped(reply, "payerViewUrl is not the pay page of " + invoice.paypalInvoiceId());
+		}
 		if (!agreedTotal.currency().equals(invoice.total().currency())
 				|| agreedTotal.amount().compareTo(invoice.total().amount()) != 0) {
 			return new Dropped(reply, "the invoice total " + invoice.total().amount().toPlainString() + " "
@@ -84,6 +87,17 @@ public final class InvoiceReplyCheck {
 		catch (URISyntaxException ex) {
 			return false;
 		}
+	}
+
+	/**
+	 * PayPal's pay page names its invoice in the fragment ({@code /invoice/p/#INV2-...}) or, in older links, as the last
+	 * path segment. Either must be exactly {@code paypalInvoiceId}, so the link can't open another invoice.
+	 */
+	static boolean namesInvoice(String url, String paypalInvoiceId) {
+		URI uri = URI.create(url);
+		String path = uri.getPath() == null ? "" : uri.getPath();
+		return paypalInvoiceId.equals(uri.getFragment())
+				|| (uri.getFragment() == null && path.endsWith("/" + paypalInvoiceId));
 	}
 
 	public sealed interface Outcome permits Invoiced, Refused, Dropped {
