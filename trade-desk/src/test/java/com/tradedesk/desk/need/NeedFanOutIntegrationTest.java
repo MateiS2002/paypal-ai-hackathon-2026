@@ -194,9 +194,11 @@ class NeedFanOutIntegrationTest {
 		List<LoggedRequest> rfqs = PEERS.findAll(postRequestedFor(urlPathMatching("/.*/agent/messages")));
 		assertThat(rfqs).hasSize(4).allSatisfy(request -> {
 			String body = request.getBodyAsString();
-			assertThat(JsonPath.<java.util.Map<String, Object>>read(body, "$.body")).containsOnlyKeys("product",
-					"origin", "quantity", "unit", "deliverBy");
-			assertThat(body).doesNotContain("15.00").doesNotContain("PRICE").doesNotContainIgnoringCase("stock");
+			java.util.Map<String, Object> payload = JsonPath.read(body, "$.body");
+			assertThat(payload).containsOnlyKeys("product", "origin", "quantity", "unit", "deliverBy");
+			// Check the payload only: the envelope's sentAt can contain "15.00" by chance (19:16:15.004).
+			String text = payload.toString();
+			assertThat(text).doesNotContain("15.00").doesNotContain("PRICE").doesNotContainIgnoringCase("stock");
 		});
 	}
 
