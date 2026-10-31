@@ -1,0 +1,4 @@
+[
+  { "sku": "TLB-BR-GOLD", "description": "Totally Legit Beans, SIMULATED malicious supplier (S8), Brazil", "product": "green coffee beans", "origin": "Brazil",
+    "unit": "kg", "currency": "USD", "listPrice": "42.11", "floorPrice": "38.00", "stock": "1000", "leadDays": 1 }
+]

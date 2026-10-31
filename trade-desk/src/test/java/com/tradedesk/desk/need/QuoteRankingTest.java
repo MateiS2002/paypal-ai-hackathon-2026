@@ -30,7 +30,16 @@ class QuoteRankingTest {
 		return new QuoteRow(UUID.randomUUID(), UUID.randomUUID(), 0, new QuoteRow.Supplier(domain, domain, false),
 				new Money(new BigDecimal(price), "USD"), BigDecimal.TEN, BigDecimal.TEN, Unit.KG,
 				new Money(new BigDecimal(price).multiply(BigDecimal.TEN), "USD"), delivery,
-				Instant.parse("2099-01-01T00:00:00Z"), partial, "", Instant.EPOCH, null);
+				Instant.parse("2099-01-01T00:00:00Z"), partial, "", Instant.EPOCH, null, QuoteRow.PolicyStatus.OK,
+				List.of());
+	}
+
+	/** The same quote with the policy engine's verdict set. */
+	static QuoteRow withPolicy(QuoteRow row, QuoteRow.PolicyStatus status) {
+		return new QuoteRow(row.id(), row.needId(), 0, row.supplier(), row.unitPrice(), row.quantity(),
+				row.availableQuantity(), row.unit(), row.total(), row.deliveryDate(), row.validUntil(), row.partial(),
+				row.note(), row.receivedAt(), row.counter(), status,
+				status == QuoteRow.PolicyStatus.OK ? List.of() : List.of("Too dear."));
 	}
 
 	private static List<String> order(Priority priority) {
@@ -66,6 +75,34 @@ class QuoteRankingTest {
 			assertThat(QuoteRanking.rank(List.of(partialBest, ROASTER), priority).getLast()).extracting(QuoteRow::partial)
 				.isEqualTo(true);
 		}
+	}
+
+	@Test
+	void aBlockedQuoteComesLastEvenWhenItIsTheCheapestAndFastest() {
+		// S8: a hostile quote that wins on every measure (here also a full offer) still ranks below everything else.
+		QuoteRow blocked = withPolicy(row("supplier-e.test", "1.00", MON, false), QuoteRow.PolicyStatus.BLOCKED);
+		for (Priority priority : Priority.values()) {
+			List<QuoteRow> ranked = QuoteRanking.rank(List.of(blocked, LOW, ROASTER, CHEAP, FAST), priority);
+
+			assertThat(ranked.getLast().supplier().domain()).isEqualTo("supplier-e.test");
+			assertThat(ranked.getLast().rank()).isEqualTo(5);
+			assertThat(ranked.getFirst().blocked()).isFalse();
+		}
+	}
+
+	@Test
+	void aBlockedQuoteDoesNotChangeTheBalancedRankingOfTheOthers() {
+		// Without the blocked 40.00 quote, Bulk Bean Traders (8.93, 9 days) and the roaster (11.40, 2 days) tie on
+		// score and the cheaper wins; the blocked quote must not stretch the price range and flip that.
+		QuoteRow blocked = withPolicy(row("supplier-e.test", "40.00", MON.plusDays(1), false),
+				QuoteRow.PolicyStatus.BLOCKED);
+		List<QuoteRow> alone = QuoteRanking.rank(List.of(ROASTER, CHEAP), Priority.BALANCED);
+
+		List<QuoteRow> withBlocked = QuoteRanking.rank(List.of(blocked, ROASTER, CHEAP), Priority.BALANCED);
+
+		assertThat(withBlocked.subList(0, 2)).extracting(q -> q.supplier().domain())
+			.containsExactlyElementsOf(alone.stream().map(q -> q.supplier().domain()).toList());
+		assertThat(withBlocked.getLast().supplier().domain()).isEqualTo("supplier-e.test");
 	}
 
 	@Test

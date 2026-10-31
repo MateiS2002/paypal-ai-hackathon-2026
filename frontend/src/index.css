@@ -367,10 +367,6 @@ label.missing select {
   font-weight: 400;
 }
 
-.offers-grid {
-  height: 16rem;
-}
-
 .row-best {
   background: #eff4ff;
 }
@@ -440,4 +436,70 @@ label.missing select {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
+}
+
+/* Malicious supplier (S8): a blocked quote, its untrusted note and the "Why this was blocked" panel */
+
+.offers-grid {
+  height: 18rem;
+}
+
+.row-blocked {
+  background: #fff5f4;
+}
+
+.policy-blocked {
+  color: #b42318;
+}
+
+.untrusted {
+  font-style: italic;
+  color: #b42318;
+}
+
+.untrusted-label {
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.why-blocked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.why-card {
+  padding: 0.75rem 1rem;
+  border: 1px solid #fda29b;
+  border-left: 4px solid #f04438;
+  border-radius: 6px;
+  background: #fff5f4;
+}
+
+.why-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  color: #b42318;
+}
+
+.why-card p {
+  margin: 0.35rem 0 0;
+}
+
+.why-card ul {
+  margin: 0.25rem 0 0.25rem 1.1rem;
+  padding: 0;
+}
+
+.policy-blocked {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

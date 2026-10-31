@@ -8,8 +8,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Ranks a need's quotes for the café's priority, in Java (S3's recommendation must pick the same winner). Full offers
- * always come before partial ones; within each group:
+ * Ranks a need's quotes for the café's priority, in Java (S3's recommendation must pick the same winner). Quotes the
+ * policy engine blocked (S8) always come last, however cheap or fast; then full offers come before partial ones, and
+ * within each group:
  * <ul>
  * <li>{@code PRICE}: lowest unit price, then earliest delivery</li>
  * <li>{@code SPEED}: earliest delivery, then lowest unit price</li>
@@ -32,9 +33,12 @@ public final class QuoteRanking {
 		Comparator<QuoteRow> within = switch (priority) {
 			case PRICE -> byPrice.thenComparing(byDelivery);
 			case SPEED -> byDelivery.thenComparing(byPrice);
-			case BALANCED -> balanced(quotes).thenComparing(byPrice).thenComparing(byDelivery);
+			// A blocked quote ranks last whatever it offers, so it must not stretch the range the others are scored in.
+			case BALANCED -> balanced(quotes.stream().filter(q -> !q.blocked()).toList()).thenComparing(byPrice)
+				.thenComparing(byDelivery);
 		};
-		Comparator<QuoteRow> order = Comparator.comparing(QuoteRow::partial)
+		Comparator<QuoteRow> order = Comparator.comparing(QuoteRow::blocked)
+			.thenComparing(QuoteRow::partial)
 			.thenComparing(within)
 			.thenComparing(q -> q.supplier().domain());
 		List<QuoteRow> sorted = new ArrayList<>(quotes);
