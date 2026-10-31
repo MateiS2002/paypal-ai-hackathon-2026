@@ -17,7 +17,9 @@
         "validUntil": "2026-11-04T10:00:00Z",
         "partial": false,
         "note": "Fresh Cerrado lot, ships from Oakland in two days.",
-        "receivedAt": "2026-11-03T10:00:01Z"
+        "receivedAt": "2026-11-03T10:00:01Z",
+        "policyStatus": "OK",
+        "policyReasons": []
       }
     ]
   }
