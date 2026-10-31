@@ -3,6 +3,8 @@ package com.tradedesk.desk.need;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import com.tradedesk.desk.agent.AgentJson;
 import com.tradedesk.desk.agent.QuoteBody;
@@ -19,6 +21,9 @@ public final class QuoteValidator {
 	static final int MAX_SUPPLIER_NAME = 100;
 
 	static final int MAX_NOTE = 200;
+
+	/** The longest reason the owner is shown for a refused message. */
+	public static final int MAX_PROBLEM = 200;
 
 	static final BigDecimal MAX_UNIT_PRICE = new BigDecimal("100000.00");
 
@@ -65,7 +70,7 @@ public final class QuoteValidator {
 			case QUOTE -> {
 				QuoteBody revised = json.body(reply.body(), QuoteBody.class).orElse(null);
 				if (revised == null) {
-					yield new Dropped(reply, "the revised quote body doesn't match the quote schema");
+					yield new Dropped(reply, schemaProblem(json, reply, "the revised quote body doesn't match the quote schema"));
 				}
 				String problem = revisionProblem(revised, previous, ref, now);
 				yield problem == null ? new Accepted(reply, revised) : new Dropped(reply, problem);
@@ -138,7 +143,7 @@ public final class QuoteValidator {
 			Instant now, LocalDate today) {
 		QuoteBody quote = json.body(reply.body(), QuoteBody.class).orElse(null);
 		if (quote == null) {
-			return new Dropped(reply, "the quote body doesn't match the quote schema");
+			return new Dropped(reply, schemaProblem(json, reply, "the quote body doesn't match the quote schema"));
 		}
 		String problem = problem(quote, rfq, request, now, today);
 		return problem == null ? new Accepted(reply, quote) : new Dropped(reply, problem);
@@ -193,6 +198,19 @@ public final class QuoteValidator {
 			return "note must be one line";
 		}
 		return null;
+	}
+
+	/**
+	 * Why a quote body didn't parse. A field the schema doesn't have is named, because a message that carries one
+	 * (S8: {@code "autoApprove": true}) is refused whole, never read with the field ignored.
+	 */
+	private static String schemaProblem(AgentJson json, AgentEnvelope reply, String fallback) {
+		List<String> extra = json.unknownFields(reply.body(), QuoteBody.class);
+		if (extra.isEmpty()) {
+			return fallback;
+		}
+		return (extra.size() == 1 ? "unexpected field " : "unexpected fields ")
+				+ extra.stream().map(name -> "`" + name + "`").collect(Collectors.joining(", "));
 	}
 
 	/** A {@code reject} of {@code request} (an RFQ or, from S3, any request this desk sent). */

@@ -168,8 +168,12 @@ export type NeedRow = {
   status: 'COLLECTING' | 'COMPLETE'
   suppliersAsked: number
   quotesReceived: number
+  // S8: suppliers whose answer was refused as malformed (an unknown field, a broken rule), with the reason.
+  refused: RefusedSupplier[]
   createdAt: string
 }
+
+export type RefusedSupplier = { domain: string; reason: string }
 
 export type QuoteRow = {
   id: string
@@ -188,7 +192,12 @@ export type QuoteRow = {
   receivedAt: string
   // S3: null until the counter round reaches this quote. After the answer, the price fields are the revised quote's.
   counter: QuoteCounter | null
+  // S8: the policy engine's verdict on this quote, with its own sentences (empty for OK). BLOCKED is out of the deal.
+  policyStatus: PolicyStatus
+  policyReasons: string[]
 }
+
+export type PolicyStatus = 'OK' | 'NEEDS_APPROVAL' | 'BLOCKED'
 
 export type QuoteCounter = {
   targetUnitPrice: Money

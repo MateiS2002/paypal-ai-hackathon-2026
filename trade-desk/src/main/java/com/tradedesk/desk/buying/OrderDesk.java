@@ -25,7 +25,6 @@ import com.tradedesk.desk.paypal.PayPalProperties;
 import com.tradedesk.desk.policy.PolicyDecision;
 import com.tradedesk.desk.policy.PolicyEngine;
 import com.tradedesk.desk.policy.PolicyRepository;
-import com.tradedesk.desk.policy.ProposedOrder;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -137,13 +136,16 @@ public class OrderDesk {
 	 * The owner's tap. Approve asks the policy engine again first, with the current policy and time. Approve on an
 	 * approved order that is {@code UNANSWERED} sends the same accept again, after the same check.
 	 * @throws ApprovalNotFoundException for an unknown approval
-	 * @throws NegotiationConflictException if it isn't pending (or an unanswered order to retry), or the engine now says
-	 * {@code BLOCKED}
+	 * @throws NegotiationConflictException if it isn't pending (or an unanswered order to retry)
+	 * @throws PolicyBlockedException if the approval was stored as {@code BLOCKED} or the engine now says {@code BLOCKED}
 	 */
 	public Approval approve(UUID approvalId, Decision decision) {
 		Approval approval = negotiations.approval(approvalId).orElseThrow(ApprovalNotFoundException::new);
 		if (decision == Decision.APPROVE && retryable(approval)) {
 			return retry(approval);
+		}
+		if (decision == Decision.APPROVE && approval.status() == Approval.Status.BLOCKED) {
+			throw new PolicyBlockedException("This order can't be approved:", approval.reasons());
 		}
 		if (approval.status() != Approval.Status.PENDING) {
 			throw new NegotiationConflictException("This approval was already decided ("
@@ -162,7 +164,7 @@ public class OrderDesk {
 		if (now.outcome() == PolicyDecision.Outcome.BLOCKED) {
 			negotiations.block(approvalId, now, clock.instant());
 			published(approval.needId(), approvalId);
-			throw new NegotiationConflictException("This order can't be approved: " + String.join(" ", now.reasons()));
+			throw new PolicyBlockedException("This order can't be approved:", now.reasons());
 		}
 		if (!negotiations.decide(approvalId, Approval.Status.APPROVED, clock.instant())) {
 			throw new NegotiationConflictException("This approval was already decided.");
@@ -185,7 +187,7 @@ public class OrderDesk {
 		NeedRow need = needs.find(approval.needId()).orElseThrow();
 		PolicyDecision now = evaluate(need, pick(need, approval.quoteId()));
 		if (now.outcome() == PolicyDecision.Outcome.BLOCKED) {
-			throw new NegotiationConflictException("This order can't be sent: " + String.join(" ", now.reasons()));
+			throw new PolicyBlockedException("This order can't be sent:", now.reasons());
 		}
 		if (!negotiations.retry(approval.id())) {
 			throw new NegotiationConflictException("This order is already being sent again.");
@@ -206,9 +208,7 @@ public class OrderDesk {
 	}
 
 	private PolicyDecision evaluate(NeedRow need, QuoteRow pick) {
-		ProposedOrder order = new ProposedOrder(pick.supplier().domain(), pick.unitPrice(), pick.quantity(),
-				pick.unit(), need.request().quantity(), pick.total(), pick.validUntil(), need.request().maxUnitPrice());
-		return policyEngine.evaluate(order, policies.get(), clock.instant());
+		return policyEngine.evaluate(pick.proposedOrder(need.request()), policies.get(), clock.instant());
 	}
 
 	/**

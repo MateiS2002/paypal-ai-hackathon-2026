@@ -30,7 +30,16 @@ class QuoteRankingTest {
 		return new QuoteRow(UUID.randomUUID(), UUID.randomUUID(), 0, new QuoteRow.Supplier(domain, domain, false),
 				new Money(new BigDecimal(price), "USD"), BigDecimal.TEN, BigDecimal.TEN, Unit.KG,
 				new Money(new BigDecimal(price).multiply(BigDecimal.TEN), "USD"), delivery,
-				Instant.parse("2099-01-01T00:00:00Z"), partial, "", Instant.EPOCH, null);
+				Instant.parse("2099-01-01T00:00:00Z"), partial, "", Instant.EPOCH, null, QuoteRow.PolicyStatus.OK,
+				List.of());
+	}
+
+	/** The same quote with the policy engine's verdict set. */
+	static QuoteRow withPolicy(QuoteRow row, QuoteRow.PolicyStatus status) {
+		return new QuoteRow(row.id(), row.needId(), 0, row.supplier(), row.unitPrice(), row.quantity(),
+				row.availableQuantity(), row.unit(), row.total(), row.deliveryDate(), row.validUntil(), row.partial(),
+				row.note(), row.receivedAt(), row.counter(), status,
+				status == QuoteRow.PolicyStatus.OK ? List.of() : List.of("Too dear."));
 	}
 
 	private static List<String> order(Priority priority) {
@@ -65,6 +74,19 @@ class QuoteRankingTest {
 		for (Priority priority : Priority.values()) {
 			assertThat(QuoteRanking.rank(List.of(partialBest, ROASTER), priority).getLast()).extracting(QuoteRow::partial)
 				.isEqualTo(true);
+		}
+	}
+
+	@Test
+	void aBlockedQuoteComesLastEvenWhenItIsTheCheapestAndFastest() {
+		// S8: a hostile quote that wins on every measure (here also a full offer) still ranks below everything else.
+		QuoteRow blocked = withPolicy(row("supplier-e.test", "1.00", MON, false), QuoteRow.PolicyStatus.BLOCKED);
+		for (Priority priority : Priority.values()) {
+			List<QuoteRow> ranked = QuoteRanking.rank(List.of(blocked, LOW, ROASTER, CHEAP, FAST), priority);
+
+			assertThat(ranked.getLast().supplier().domain()).isEqualTo("supplier-e.test");
+			assertThat(ranked.getLast().rank()).isEqualTo(5);
+			assertThat(ranked.getFirst().blocked()).isFalse();
 		}
 	}
 

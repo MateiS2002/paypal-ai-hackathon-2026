@@ -33,7 +33,8 @@ class RecommendationWriterTest {
 		return new QuoteRow(UUID.randomUUID(), UUID.randomUUID(), 0, new QuoteRow.Supplier(domain, name, false),
 				new Money(p, "USD"), new BigDecimal("50"), new BigDecimal("320"), Unit.KG,
 				new Money(p.multiply(new BigDecimal("50")).setScale(2), "USD"), delivery,
-				Instant.parse("2099-01-01T00:00:00Z"), false, "", Instant.EPOCH, null);
+				Instant.parse("2099-01-01T00:00:00Z"), false, "", Instant.EPOCH, null, QuoteRow.PolicyStatus.OK,
+				List.of());
 	}
 
 	/** The roaster is $1.90 dearer than the cheap supplier but a week sooner; the café asked for speed. */
