@@ -33,7 +33,9 @@ public final class QuoteRanking {
 		Comparator<QuoteRow> within = switch (priority) {
 			case PRICE -> byPrice.thenComparing(byDelivery);
 			case SPEED -> byDelivery.thenComparing(byPrice);
-			case BALANCED -> balanced(quotes).thenComparing(byPrice).thenComparing(byDelivery);
+			// A blocked quote ranks last whatever it offers, so it must not stretch the range the others are scored in.
+			case BALANCED -> balanced(quotes.stream().filter(q -> !q.blocked()).toList()).thenComparing(byPrice)
+				.thenComparing(byDelivery);
 		};
 		Comparator<QuoteRow> order = Comparator.comparing(QuoteRow::blocked)
 			.thenComparing(QuoteRow::partial)

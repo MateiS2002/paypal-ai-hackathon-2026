@@ -91,6 +91,21 @@ class QuoteRankingTest {
 	}
 
 	@Test
+	void aBlockedQuoteDoesNotChangeTheBalancedRankingOfTheOthers() {
+		// Without the blocked 40.00 quote, Bulk Bean Traders (8.93, 9 days) and the roaster (11.40, 2 days) tie on
+		// score and the cheaper wins; the blocked quote must not stretch the price range and flip that.
+		QuoteRow blocked = withPolicy(row("supplier-e.test", "40.00", MON.plusDays(1), false),
+				QuoteRow.PolicyStatus.BLOCKED);
+		List<QuoteRow> alone = QuoteRanking.rank(List.of(ROASTER, CHEAP), Priority.BALANCED);
+
+		List<QuoteRow> withBlocked = QuoteRanking.rank(List.of(blocked, ROASTER, CHEAP), Priority.BALANCED);
+
+		assertThat(withBlocked.subList(0, 2)).extracting(q -> q.supplier().domain())
+			.containsExactlyElementsOf(alone.stream().map(q -> q.supplier().domain()).toList());
+		assertThat(withBlocked.getLast().supplier().domain()).isEqualTo("supplier-e.test");
+	}
+
+	@Test
 	void ranksStartAtOneAndTiesAreStable() {
 		QuoteRow a = row("a.test", "10.00", MON.plusDays(2), false);
 		QuoteRow b = row("b.test", "10.00", MON.plusDays(2), false);
