@@ -1,22 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  getRecommendation,
   listInvoices,
   listNeeds,
+  listPayables,
   listQuotes,
   logout,
   subscribe,
+  type Approval,
   type DeskEvent,
   type DeskId,
   type InvoiceRow,
   type Me,
   type NeedRow,
+  type PayableRow,
   type QuoteRow,
+  type Recommendation,
 } from './api'
 import { trimDecimals } from './format'
 import Ledger from './Ledger'
 import NeedBox from './NeedBox'
 import NewInvoiceForm from './NewInvoiceForm'
 import OffersGrid from './OffersGrid'
+import Payables from './Payables'
+import PolicyForm from './PolicyForm'
+import RecommendationCard from './RecommendationCard'
 
 type Props = { desk: DeskId; user: Me; onLogout: () => void }
 
@@ -26,11 +34,27 @@ function upsert<T extends { id: string }>(rows: T[], row: T): T[] {
 }
 
 /**
- * Quote lists only grow, and each event carries the need's whole ranked list. So when a reload and an event race,
- * the longer list is the newer one.
+ * Like upsert, but keeps the row already there when it is at least as new. A payable reload can return after a newer
+ * event, and an event delivered before a reconnect can be older than the reload, so neither side always wins.
+ */
+function upsertNewer(rows: PayableRow[], row: PayableRow): PayableRow[] {
+  const existing = rows.find((r) => r.id === row.id)
+  return existing && Date.parse(existing.updatedAt) >= Date.parse(row.updatedAt) ? rows : upsert(rows, row)
+}
+
+/** A counter only moves forward: none, then PENDING, then an outcome. */
+function counterProgress(quotes: QuoteRow[]): number {
+  return quotes.reduce((sum, q) => sum + (q.counter === null ? 0 : q.counter.outcome === 'PENDING' ? 1 : 2), 0)
+}
+
+/**
+ * Quote lists only grow, and a counter only moves forward, so when a reload and an event race, the longer list is the
+ * newer one, and at equal length the one with more counter progress. Arrival order never decides.
  */
 function newer(current: QuoteRow[] | undefined, incoming: QuoteRow[]): QuoteRow[] {
-  return current && current.length > incoming.length ? current : incoming
+  if (!current || current.length < incoming.length) return incoming
+  if (current.length > incoming.length) return current
+  return counterProgress(current) > counterProgress(incoming) ? current : incoming
 }
 
 /** A need only moves forward (COLLECTING to COMPLETE, more quotes), so the further-along copy is the newer one. */
@@ -73,6 +97,31 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
   const [needs, setNeeds] = useState<NeedRow[]>([])
   const [quotes, setQuotes] = useState<Record<string, QuoteRow[]>>({})
   const [selected, setSelected] = useState<string | null>(null)
+  // S3: the buyer agent's recommendation per need, the invoices to pay, and the limits screen.
+  const [recommendations, setRecommendations] = useState<Record<string, Recommendation>>({})
+  const [payables, setPayables] = useState<PayableRow[]>([])
+  const [showPolicy, setShowPolicy] = useState(false)
+  // Read by the stream's reconnect handler, which is set up once per desk.
+  const selectedRef = useRef<string | null>(null)
+  useEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
+
+  const loadRecommendation = useCallback(
+    (needId: string) => {
+      getRecommendation(desk, needId)
+        .then((found) => setRecommendations((current) => ({ ...current, [needId]: found })))
+        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+    },
+    [desk],
+  )
+
+  const reloadPayables = useCallback(() => {
+    if (!buys) return
+    listPayables(desk)
+      .then((found) => setPayables((current) => current.reduce(upsertNewer, found)))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [buys, desk])
 
   const loadQuotes = useCallback(
     (needId: string) => {
@@ -123,6 +172,20 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
         setQuotes((current) => ({ ...current, [needId]: newer(current[needId], ranked) }))
         return
       }
+      if (event.type === 'recommendation.updated') {
+        const recommendation = event.data as Recommendation
+        setRecommendations((current) => ({ ...current, [recommendation.needId]: recommendation }))
+        return
+      }
+      if (event.type === 'approval.needed') {
+        loadRecommendation((event.data as Approval).needId)
+        return
+      }
+      if (event.type === 'payable.updated') {
+        const payable = event.data as PayableRow
+        setPayables((current) => upsertNewer(current, payable))
+        return
+      }
       if (event.type !== 'invoice.updated') return
       const row = event.data as InvoiceRow
       pending.current?.push(row)
@@ -134,10 +197,17 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
       if (open) {
         reload()
         reloadNeeds()
+        reloadPayables()
+        // Counter answers only change prices, not the list's length, so reload the selected need's quotes too.
+        const current = selectedRef.current
+        if (current) {
+          loadQuotes(current)
+          loadRecommendation(current)
+        }
       }
     }
     return subscribe(desk, onEvent, onStatus)
-  }, [desk, reload, reloadNeeds])
+  }, [desk, reload, reloadNeeds, reloadPayables, loadQuotes, loadRecommendation])
 
   const need = needs.find((n) => n.id === selected) ?? null
 
@@ -148,6 +218,13 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
   useEffect(() => {
     if (selected && !caughtUp) loadQuotes(selected)
   }, [selected, caughtUp, loadQuotes])
+
+  // The recommendation follows the need: fetch it when a need is picked or finishes collecting.
+  const needStatus = need?.status
+  useEffect(() => {
+    if (buys && selected && needStatus === 'COMPLETE') loadRecommendation(selected)
+  }, [buys, selected, needStatus, loadRecommendation])
+  const recommendation = selected ? (recommendations[selected] ?? null) : null
 
   const signOut = async () => {
     // Only leave the dashboard once the server has really ended the session.
@@ -173,12 +250,18 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
         </div>
         <div className="desk-actions">
           <span className={live ? 'status live' : 'status'}>{live ? 'Live' : 'Offline'}</span>
+          {buys && (
+            <button className="secondary" onClick={() => setShowPolicy((open) => !open)}>
+              Limits
+            </button>
+          )}
           <button className="secondary" onClick={signOut}>
             Log out
           </button>
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      {buys && showPolicy && <PolicyForm desk={desk} onClose={() => setShowPolicy(false)} />}
       {buys && (
         <>
           <NeedBox
@@ -202,7 +285,19 @@ export default function DeskHome({ desk, user, onLogout }: Props) {
               </select>
             </label>
           )}
-          {need && <OffersGrid need={need} quotes={quotes[need.id] ?? []} />}
+          {need && (
+            <OffersGrid need={need} quotes={quotes[need.id] ?? []} pickId={recommendation?.pick?.id ?? null} />
+          )}
+          <RecommendationCard
+            desk={desk}
+            recommendation={recommendation}
+            onChange={(updated) => setRecommendations((current) => ({ ...current, [updated.needId]: updated }))}
+            onError={setError}
+          />
+          <div className="section-head">
+            <h2>Invoices to pay</h2>
+          </div>
+          <Payables rows={payables} />
         </>
       )}
       <div className="section-head">

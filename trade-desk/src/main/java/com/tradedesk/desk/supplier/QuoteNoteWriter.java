@@ -60,7 +60,9 @@ public class QuoteNoteWriter {
 		if (text == null) {
 			return "";
 		}
-		String line = text.strip().lines().findFirst().orElse("").replaceAll("\\p{Cntrl}", " ").strip();
+		// String.lines() and \p{Cntrl} miss NEL and the Unicode line and paragraph separators.
+		String line = text.replaceAll("[\u0085\u2028\u2029]", " ").strip().lines().findFirst().orElse("")
+			.replaceAll("\\p{Cntrl}", " ").strip();
 		if (line.length() >= 2 && line.startsWith("\"") && line.endsWith("\"")) {
 			line = line.substring(1, line.length() - 1).strip();
 		}

@@ -1,0 +1,6 @@
+{
+  "maxUnitPrice": { "amount": "15.00", "currency": "USD" },
+  "approvalAbove": { "amount": "500.00", "currency": "USD" },
+  "maxOrderTotal": { "amount": "2000.00", "currency": "USD" },
+  "updatedAt": "2026-11-03T09:00:00Z"
+}

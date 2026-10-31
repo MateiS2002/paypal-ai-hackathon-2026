@@ -86,12 +86,24 @@ public class InvoiceService {
 	 * @throws PayPalException if PayPal failed; the progress is stored, so a retry with the same key resumes
 	 */
 	public Result create(UUID idempotencyKey, NewInvoice request, InvoiceSource source, String sourceText) {
+		return create(idempotencyKey, request, source, sourceText, null);
+	}
+
+	/**
+	 * {@link #create(UUID, NewInvoice, InvoiceSource, String)} for an invoice that ends a negotiation (S3).
+	 * @param negotiation required for {@link InvoiceSource#NEGOTIATION}, and only for it
+	 */
+	public Result create(UUID idempotencyKey, NewInvoice request, InvoiceSource source, String sourceText,
+			NegotiationLink negotiation) {
 		Objects.requireNonNull(idempotencyKey, "idempotencyKey");
 		Objects.requireNonNull(source, "source");
+		if ((source == InvoiceSource.NEGOTIATION) != (negotiation != null)) {
+			throw new IllegalArgumentException("A negotiation link goes with NEGOTIATION invoices, and only with them");
+		}
 		String text = source == InvoiceSource.MESSY_ORDER ? sourceText : null;
 		InvoiceTotals.Priced priced = InvoiceTotals.price(request);
 		boolean hold = needsApproval(source, priced, desk.invoiceApprovalAbove());
-		String hash = requestHash(priced, source, text);
+		String hash = requestHash(priced, source, text, negotiation);
 
 		synchronized (keyLocks[Math.floorMod(idempotencyKey.hashCode(), keyLocks.length)]) {
 			Optional<Operation> existing = invoices.findOperation(idempotencyKey);
@@ -103,7 +115,7 @@ public class InvoiceService {
 				throw new PayPalNotConfiguredException();
 			}
 			Operation operation = existing
-				.orElseGet(() -> start(idempotencyKey, priced, hash, hold, source, text));
+				.orElseGet(() -> start(idempotencyKey, priced, hash, hold, source, text, negotiation));
 			boolean created = existing.isEmpty();
 			try {
 				if (operation.step() != Operation.Step.SENT && !isHeld(operation.invoiceId())) {
@@ -129,14 +141,15 @@ public class InvoiceService {
 
 	/** Stores the invoice, its lines and the operation in one transaction, before any PayPal call. */
 	private Operation start(UUID key, InvoiceTotals.Priced priced, String hash, boolean hold, InvoiceSource source,
-			String sourceText) {
+			String sourceText, NegotiationLink negotiation) {
 		UUID invoiceId = UUID.randomUUID();
 		UUID payPalRequestId = UUID.randomUUID();
 		LocalDate dueDate = LocalDate.now(clock.withZone(desk.timeZone())).plusDays(DUE_IN_DAYS);
 		transaction.executeWithoutResult(status -> {
 			UUID customerId = invoices.findOrCreateCustomer(priced.customer().name(), priced.customer().email());
 			invoices.insertInvoice(invoiceId, customerId, priced,
-					hold ? InvoiceStatus.AWAITING_APPROVAL : InvoiceStatus.DRAFT, source, sourceText, dueDate);
+					hold ? InvoiceStatus.AWAITING_APPROVAL : InvoiceStatus.DRAFT, source, sourceText, dueDate,
+					negotiation);
 			invoices.insertOperation(key, hash, payPalRequestId, invoiceId);
 		});
 		if (hold) {
@@ -208,7 +221,9 @@ public class InvoiceService {
 	}
 
 	private PayPalInvoicing.Draft draft(InvoiceRow row, String invoiceNumber) {
-		return new PayPalInvoicing.Draft(invoiceNumber, desk.name(), row.customer().name(), row.customer().email(),
+		// SIMULATED suppliers share one sandbox merchant; the invoice itself says it is from a simulated business.
+		String invoicer = desk.simulated() ? desk.name() + " (SIMULATED)" : desk.name();
+		return new PayPalInvoicing.Draft(invoiceNumber, invoicer, row.customer().name(), row.customer().email(),
 				row.total().currency(), row.dueDate(),
 				row.lines()
 					.stream()
@@ -240,9 +255,15 @@ public class InvoiceService {
 	}
 
 	/** A fingerprint of the checked request, so the same key with a different invoice is caught. */
-	static String requestHash(InvoiceTotals.Priced priced, InvoiceSource source, String sourceText) {
-		StringBuilder canonical = new StringBuilder()
-			.append(source).append('\u001f')
+	static String requestHash(InvoiceTotals.Priced priced, InvoiceSource source, String sourceText,
+			NegotiationLink negotiation) {
+		StringBuilder canonical = new StringBuilder().append(source).append('\u001f');
+		// Only negotiation invoices add a field, so hashes stored before S3 still match their retries.
+		if (negotiation != null) {
+			canonical.append(negotiation.conversationId()).append('@').append(negotiation.buyerDomain())
+				.append('\u001f');
+		}
+		canonical
 			.append(priced.customer().name()).append('\u001f')
 			.append(priced.customer().email()).append('\u001f')
 			.append(priced.currency()).append('\u001f')

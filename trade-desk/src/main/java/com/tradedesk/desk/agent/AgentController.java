@@ -18,7 +18,8 @@ public class AgentController {
 		this.inbox = inbox;
 	}
 
-	// TODO S5: require scoped token (rfq:send, aud = this desk) and a matching envelope from. Until then anyone who can
+	// TODO S5: require a scoped token (aud = this desk, scope for the envelope type: rfq:send, quote:counter,
+	// quote:accept, invoice:notify) and a signed envelope whose from matches the token. Until then anyone who can
 	// reach the desk can call this unauthenticated: other containers on the compose network, and any local process via
 	// the desk's 127.0.0.1 port (8081 to 8085). Browsers are refused (RefuseBrowserRequests); the frontend's nginx never
 	// proxies /agent.

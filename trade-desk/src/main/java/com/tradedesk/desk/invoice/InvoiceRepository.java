@@ -49,11 +49,12 @@ public class InvoiceRepository {
 	// Invoices
 
 	public void insertInvoice(UUID id, UUID customerId, InvoiceTotals.Priced priced, InvoiceStatus status,
-			InvoiceSource source, String sourceText, LocalDate dueDate) {
+			InvoiceSource source, String sourceText, LocalDate dueDate, NegotiationLink negotiation) {
 		jdbc.sql("""
 				insert into invoice (id, customer_id, customer_name, customer_email, total_minor, currency, status,
-				                     due_date, source, source_text)
-				values (:id, :customerId, :name, :email, :total, :currency, :status, :dueDate, :source, :sourceText)
+				                     due_date, source, source_text, conversation_id, buyer_domain)
+				values (:id, :customerId, :name, :email, :total, :currency, :status, :dueDate, :source, :sourceText,
+				        :conversationId, :buyerDomain)
 				""")
 			.param("id", id)
 			.param("customerId", customerId)
@@ -65,6 +66,8 @@ public class InvoiceRepository {
 			.param("dueDate", dueDate)
 			.param("source", source.name())
 			.param("sourceText", sourceText)
+			.param("conversationId", negotiation == null ? null : negotiation.conversationId())
+			.param("buyerDomain", negotiation == null ? null : negotiation.buyerDomain())
 			.update();
 		int lineNo = 1;
 		for (InvoiceTotals.PricedLine line : priced.lines()) {
@@ -162,6 +165,35 @@ public class InvoiceRepository {
 			.list();
 	}
 
+	// Buyer notifications (S3)
+
+	/**
+	 * Negotiation invoices whose buyer hasn't acknowledged the current status yet, oldest change first. Read from the
+	 * database each round, so a status the buyer missed (its desk was down) is sent again. Only invoices the buyer
+	 * already knows from the accept's {@code invoice} reply ({@code buyer_notified_status} set): one still being
+	 * created is the reply's job, not this push's.
+	 */
+	public List<BuyerUpdate> findBuyerUpdates() {
+		return jdbc.sql("""
+				select id, paypal_invoice_id, status, updated_at, conversation_id, buyer_domain from invoice
+				 where source = 'NEGOTIATION' and buyer_domain is not null and paypal_invoice_id is not null
+				   and buyer_notified_status is not null and buyer_notified_status <> status
+				 order by updated_at
+				""")
+			.query((rs, n) -> new BuyerUpdate(rs.getObject("id", UUID.class), rs.getString("paypal_invoice_id"),
+					InvoiceStatus.valueOf(rs.getString("status")), instant(rs, "updated_at"),
+					new NegotiationLink(rs.getObject("conversation_id", UUID.class), rs.getString("buyer_domain"))))
+			.list();
+	}
+
+	/** Records that the buyer has {@code status}; a later change makes the invoice show up in the next round again. */
+	public void markBuyerNotified(UUID id, InvoiceStatus status) {
+		jdbc.sql("update invoice set buyer_notified_status = :status where id = :id")
+			.param("status", status.name())
+			.param("id", id)
+			.update();
+	}
+
 	// Idempotency
 
 	public void insertOperation(UUID key, String requestHash, UUID payPalRequestId, UUID invoiceId) {
@@ -245,6 +277,11 @@ public class InvoiceRepository {
 	}
 
 	public record OpenInvoice(UUID id, String payPalInvoiceId, InvoiceStatus status) {
+	}
+
+	/** A negotiation invoice whose buyer should hear its current status. */
+	public record BuyerUpdate(UUID id, String payPalInvoiceId, InvoiceStatus status, Instant updatedAt,
+			NegotiationLink negotiation) {
 	}
 
 	/** One {@code Idempotency-Key} and how far its invoice got. */

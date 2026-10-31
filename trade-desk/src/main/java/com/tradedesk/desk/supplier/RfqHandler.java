@@ -27,7 +27,8 @@ import org.springframework.stereotype.Component;
 /**
  * The seller side of an RFQ: reads the body, lets {@link QuotePricer} decide every number, asks
  * {@link QuoteNoteWriter} for the note, and builds the {@code quote} or {@code reject} reply. SIMULATED personas wait a
- * moment first so the café's grid fills one quote at a time.
+ * moment first so the café's grid fills one quote at a time. Every quote sent is recorded, so a later counter or
+ * accept (S3) is checked against what this desk really offered.
  */
 @Component
 public class RfqHandler {
@@ -44,6 +45,8 @@ public class RfqHandler {
 
 	private final CatalogueRepository catalogue;
 
+	private final SupplierQuoteRepository quotes;
+
 	private final QuoteNoteWriter notes;
 
 	private final AgentJson json;
@@ -52,9 +55,10 @@ public class RfqHandler {
 
 	private final Clock clock;
 
-	public RfqHandler(CatalogueRepository catalogue, QuoteNoteWriter notes, AgentJson json, DeskProperties desk,
-			Clock clock) {
+	public RfqHandler(CatalogueRepository catalogue, SupplierQuoteRepository quotes, QuoteNoteWriter notes,
+			AgentJson json, DeskProperties desk, Clock clock) {
 		this.catalogue = catalogue;
+		this.quotes = quotes;
 		this.notes = notes;
 		this.json = json;
 		this.desk = desk;
@@ -87,10 +91,15 @@ public class RfqHandler {
 		sleepUntil(replyAt);
 		QuoteBody quote = new QuoteBody(rfq.messageId(), desk.name(), desk.simulated(),
 				new Money(offer.unitPrice(), offer.item().currency()), offer.quantity(), offer.available(),
-				offer.item().unit(), offer.deliveryDate(), clock.instant().plus(QUOTE_VALID_FOR), note.join());
+				offer.item().unit(), offer.deliveryDate(), clock.instant().plus(QUOTE_VALID_FOR), note.join(), null);
+		AgentEnvelope reply = reply(rfq, AgentEnvelope.Type.QUOTE, quote);
+		quotes.insert(new SupplierQuote(reply.messageId(), rfq.conversationId(), rfq.from(), rfq.messageId(),
+				offer.item().sku(), offer.unitPrice(), offer.item().currency(), offer.quantity(), offer.available(),
+				offer.item().unit(), offer.deliveryDate(), quote.validUntil(), quote.note(), null,
+				SupplierQuote.Status.OPEN, null));
 		log.info("Quoted RFQ {} from {}: {} {} at {} {}", rfq.messageId(), rfq.from(), offer.quantity(),
 				offer.item().unit().wireName(), offer.unitPrice(), offer.item().currency());
-		return reply(rfq, AgentEnvelope.Type.QUOTE, quote);
+		return reply;
 	}
 
 	AgentEnvelope reject(AgentEnvelope to, String reason) {

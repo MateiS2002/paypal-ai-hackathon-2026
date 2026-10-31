@@ -378,3 +378,66 @@ label.missing select {
 .cell-warn {
   color: #b54708;
 }
+
+/* Counter, approve, invoice (S3) */
+
+.cell-good {
+  color: #067647;
+}
+
+.recommendation {
+  margin-top: 1rem;
+}
+
+.recommendation.decision-NEEDS_APPROVAL {
+  border-color: #f79009;
+}
+
+.recommendation.decision-BLOCKED {
+  border-color: #f04438;
+}
+
+.recommendation .pick-terms {
+  margin: 0.25rem 0;
+}
+
+.recommendation .reason {
+  font-style: italic;
+}
+
+.policy-decision {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.pill-PENDING {
+  background: #fef0c7;
+  color: #93370d;
+}
+
+.pill-AUTO_APPROVED,
+.pill-APPROVED {
+  background: #dcfae6;
+  color: #067647;
+}
+
+.pill-BLOCKED,
+.pill-REJECTED {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.payables-grid {
+  height: 14rem;
+}
+
+.policy-form {
+  margin-top: 1rem;
+}
+
+.policy-form .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}

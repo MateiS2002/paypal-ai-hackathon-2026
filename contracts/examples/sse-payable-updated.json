@@ -1,0 +1,15 @@
+{
+  "type": "payable.updated",
+  "data": {
+    "id": "7c6b5a49-3827-4e16-9d5c-4b3a29180f7e",
+    "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+    "supplier": { "domain": "roaster.test", "name": "Roaster & Co", "simulated": false },
+    "description": "50 kg green coffee beans from Brazil",
+    "paypalInvoiceId": "INV2-ABCD-1234-EFGH-5678",
+    "payerViewUrl": "https://www.sandbox.paypal.com/invoice/p/#INV2-ABCD-1234-EFGH-5678",
+    "total": { "amount": "541.50", "currency": "USD" },
+    "status": "PAID",
+    "createdAt": "2026-11-03T10:00:33Z",
+    "updatedAt": "2026-11-03T10:04:12Z"
+  }
+}

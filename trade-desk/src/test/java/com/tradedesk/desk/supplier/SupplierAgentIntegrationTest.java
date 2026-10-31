@@ -116,11 +116,12 @@ class SupplierAgentIntegrationTest {
 	}
 
 	@Test
-	void refusesMessagesForAnotherDeskOrOfAnotherTypeAndStoresThem() throws Exception {
+	void refusesMessagesForAnotherDeskOrOfAReplyTypeAndStoresThem() throws Exception {
 		UUID conversationId = UUID.randomUUID();
 
 		send(rfq(UUID.randomUUID(), conversationId, "supplier-b.test", "rfq"), 400);
-		send(rfq(UUID.randomUUID(), conversationId, "roaster.test", "accept"), 400);
+		// A quote is a reply, never a request (S3 accepts counter, accept and invoice.status as requests).
+		send(rfq(UUID.randomUUID(), conversationId, "roaster.test", "quote"), 400);
 
 		assertThat(conversations.conversation(conversationId)).hasSize(2)
 			.allSatisfy(entry -> assertThat(entry.valid()).isFalse());

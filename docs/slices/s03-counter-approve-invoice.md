@@ -4,7 +4,7 @@
 
 ## Goal
 
-Close the loop from need to money. The buyer agent sends one counter-offer to the top 2 or 3 quotes, recommends a winner with a one-line reason, the Java policy engine decides whether the owner must approve, and on accept the supplier desk creates and sends a PayPal invoice through S1's `InvoiceService`. The café sees it under "Invoices to pay".
+Close the loop from need to money. The buyer agent sends at most one counter-offer to each of the top 3 quotes (Java skips a quote whose clamped target isn't positive and strictly below its price), recommends a winner with a one-line reason, the Java policy engine decides whether the owner must approve, and on accept the supplier desk creates and sends a PayPal invoice through S1's `InvoiceService`. The café sees it under "Invoices to pay".
 
 Together, S1 + S2 + S3 are the "vertical slice" in architecture.md's working order.
 
@@ -14,12 +14,12 @@ Counters go out, two suppliers improve their price, the agent says "Roaster: $1 
 
 ## In scope
 
-- **Counter round:** exactly one. Buyer agent proposes a target price per supplier; Java clamps it (never above the current quote, never above `maxUnitPrice`). Supplier desks accept, partly meet, or hold, decided in Java against their floor.
+- **Counter round:** exactly one, with at most one counter per top-3 quote; Java sends none for a quote whose clamped target isn't more than zero and strictly below the quote's price. Buyer agent proposes a target price per supplier; Java clamps it (never above the current quote, never above `maxUnitPrice`). Supplier desks accept, partly meet, or hold, decided in Java against their floor.
 - **Recommendation:** LLM writes the reason; Java picks the winner by the same ranking as S2, so the reason can't pick a different supplier than the code.
 - **Policy engine (plain Java):** café rules `maxUnitPrice`, `approvalAbove` (e.g. $500), `maxOrderTotal`. Outcomes: `AUTO_ACCEPT`, `NEEDS_APPROVAL`, `BLOCKED` with reasons. Café owner can edit the rules on a settings screen.
 - **Approval:** `approval.needed` SSE event, one-tap Approve or Reject in the UI. Nothing is sent to the supplier before approval.
 - **Accept to invoice:** café sends `accept`; supplier desk re-checks the quote is still valid and within floor, then calls `InvoiceService` with `source = NEGOTIATION` and returns the PayPal invoice id and payer link in its reply.
-- Café UI: "Invoices to pay" list with the PayPal pay link and live status. The supplier desk's S1 poller sends an `invoice.status` message to the café whenever the status changes; the café updates `payable.status` from it and emits `invoice.updated` on its own SSE stream.
+- Café UI: "Invoices to pay" list with the PayPal pay link and live status. The supplier desk's S1 poller sends an `invoice.status` message to the café whenever the status changes; the café updates `payable.status` from it and emits `payable.updated` on its own SSE stream (also when the payable is first created from the `invoice` reply) (decided in the S3 contracts: `invoice.updated` stays the seller's ledger event).
 - Simulated suppliers invoice through the shared SIMULATED sandbox merchant.
 
 ## Out of scope
@@ -28,7 +28,7 @@ Multiple counter rounds, partial deliveries, the malicious supplier (S8).
 
 ## Contracts
 
-Agent message types added: `counter` (`{ "quoteId", "unitPrice": Money }`), `quote` (revised), `accept` (`{ "quoteId" }`), reply `invoice` (`{ "paypalInvoiceId", "payerViewUrl", "total": Money, "status" }`), `reject`, and `invoice.status` from supplier to buyer (`{ "paypalInvoiceId", "status", "updatedAt" }`). `status` uses S1's enum. The café ignores an `invoice.status` for an invoice id it doesn't hold or from a desk that isn't that invoice's supplier. Until S5 lands, `from` is only claimed, not proven, so `invoice.status` is unauthenticated in S3 builds; S5's `invoice:notify` scope and envelope signature close that gap. Mark the handler `TODO S5`.
+Agent message types added: `counter` (`{ "quoteId", "unitPrice": Money }`), `quote` (revised), `accept` (`{ "quoteId", "billTo": { "name", "email" } }`), reply `invoice` (`{ "paypalInvoiceId", "payerViewUrl", "total": Money, "status" }`), `reject`, and `invoice.status` from supplier to buyer (`{ "paypalInvoiceId", "status", "updatedAt" }`). `status` uses S1's enum. The café ignores an `invoice.status` for an invoice id it doesn't hold or from a desk that isn't that invoice's supplier. Until S5 lands, `from` is only claimed, not proven, so `invoice.status` is unauthenticated in S3 builds; S5's `invoice:notify` scope and envelope signature close that gap. Mark the handler `TODO S5`.
 
 Desk API (café): `POST /api/needs/{id}/counter`, `GET /api/needs/{id}/recommendation`, `POST /api/approvals/{id}` with `{ "decision": "APPROVE" | "REJECT" }`, `GET /api/payables`, `GET/PUT /api/policy`.
 

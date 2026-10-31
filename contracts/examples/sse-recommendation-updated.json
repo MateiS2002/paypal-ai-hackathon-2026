@@ -1,0 +1,44 @@
+{
+  "type": "recommendation.updated",
+  "data": {
+    "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+    "stage": "READY",
+    "pick": {
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+      "rank": 1,
+      "supplier": { "domain": "roaster.test", "name": "Roaster & Co", "simulated": false },
+      "unitPrice": { "amount": "10.83", "currency": "USD" },
+      "quantity": "50",
+      "availableQuantity": "320",
+      "unit": "kg",
+      "total": { "amount": "541.50", "currency": "USD" },
+      "deliveryDate": "2026-11-05",
+      "validUntil": "2026-11-04T10:00:13Z",
+      "partial": false,
+      "note": "We can meet 10.83 USD per kg.",
+      "receivedAt": "2026-11-03T10:00:01Z",
+      "counter": {
+        "targetUnitPrice": { "amount": "10.83", "currency": "USD" },
+        "previousUnitPrice": { "amount": "11.40", "currency": "USD" },
+        "outcome": "MET"
+      }
+    },
+    "reason": "Roaster & Co: $1.90 more per kg than Bulk Bean Traders but arrives 7 days sooner, and you asked for speed.",
+    "reasonSource": "AI",
+    "approval": {
+      "id": "5e4d3c2b-1a09-4f8e-8d7c-6b5a4f3e2d1c",
+      "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+      "quoteId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "supplier": { "domain": "roaster.test", "name": "Roaster & Co", "simulated": false },
+      "total": { "amount": "541.50", "currency": "USD" },
+      "decision": "NEEDS_APPROVAL",
+      "reasons": ["The total 541.50 USD is above your approval limit of 500.00 USD."],
+      "status": "PENDING",
+      "order": "NOT_SENT",
+      "orderDetail": null,
+      "createdAt": "2026-11-03T10:00:20Z",
+      "decidedAt": null
+    }
+  }
+}

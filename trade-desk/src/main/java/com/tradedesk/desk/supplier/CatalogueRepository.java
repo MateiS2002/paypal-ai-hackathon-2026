@@ -1,6 +1,9 @@
 package com.tradedesk.desk.supplier;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
+import java.util.Optional;
 
 import com.tradedesk.desk.contract.Unit;
 import com.tradedesk.desk.invoice.InvoiceTotals;
@@ -19,13 +22,23 @@ public class CatalogueRepository {
 	}
 
 	public List<CatalogueItem> findAll() {
-		return jdbc.sql("select * from catalogue_item order by sku")
-			.query((rs, n) -> new CatalogueItem(rs.getString("sku"), rs.getString("description"),
-					rs.getString("product"), rs.getString("origin"), Unit.fromWire(rs.getString("unit")),
-					rs.getString("currency"), InvoiceTotals.fromMinor(rs.getLong("list_price_minor")),
-					InvoiceTotals.fromMinor(rs.getLong("floor_price_minor")), rs.getBigDecimal("stock"),
-					rs.getInt("lead_days")))
-			.list();
+		return jdbc.sql("select * from catalogue_item order by sku").query(CatalogueRepository::item).list();
+	}
+
+	/** The item as it is now, so a counter or an accept is checked against today's floor and stock. */
+	public Optional<CatalogueItem> find(String sku) {
+		return jdbc.sql("select * from catalogue_item where sku = :sku")
+			.param("sku", sku)
+			.query(CatalogueRepository::item)
+			.optional();
+	}
+
+	private static CatalogueItem item(ResultSet rs, int n) throws SQLException {
+		return new CatalogueItem(rs.getString("sku"), rs.getString("description"), rs.getString("product"),
+				rs.getString("origin"), Unit.fromWire(rs.getString("unit")), rs.getString("currency"),
+				InvoiceTotals.fromMinor(rs.getLong("list_price_minor")),
+				InvoiceTotals.fromMinor(rs.getLong("floor_price_minor")), rs.getBigDecimal("stock"),
+				rs.getInt("lead_days"));
 	}
 
 	public boolean isEmpty() {

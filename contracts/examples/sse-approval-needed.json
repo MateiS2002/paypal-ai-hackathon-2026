@@ -1,0 +1,17 @@
+{
+  "type": "approval.needed",
+  "data": {
+    "id": "5e4d3c2b-1a09-4f8e-8d7c-6b5a4f3e2d1c",
+    "needId": "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f",
+    "quoteId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "supplier": { "domain": "roaster.test", "name": "Roaster & Co", "simulated": false },
+    "total": { "amount": "541.50", "currency": "USD" },
+    "decision": "NEEDS_APPROVAL",
+    "reasons": ["The total 541.50 USD is above your approval limit of 500.00 USD."],
+    "status": "PENDING",
+    "order": "NOT_SENT",
+    "orderDetail": null,
+    "createdAt": "2026-11-03T10:00:20Z",
+    "decidedAt": null
+  }
+}

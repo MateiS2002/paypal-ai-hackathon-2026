@@ -17,19 +17,19 @@ Why this one first:
 
 ## All slices
 
-| # | Slice | Demo moment | Depends on | Owner (suggested) | Days |
-| --- | --- | --- | --- | --- | --- |
-| [S0](s00-skeleton-and-contracts.md) | Skeleton and contracts | `docker compose up` brings up every service, all healthy | none | Matei | 1 |
-| [S1](s01-invoice-to-paid.md) | Invoice to paid | Ledger row goes SENT to PAID live after a sandbox payment | S0 | Matei | 2 |
-| [S2](s02-need-to-quotes.md) | Post a need, get quotes | Café types a need; quotes from 4 suppliers (roaster + 3 SIMULATED) stream into an AG Grid table. **In review** (Oct 29): sync quote-in-response, RFQ carries no budget or priority | S0 | Matei | 2 |
-| [S3](s03-counter-approve-invoice.md) | Counter, approve, invoice | One counter round, one-tap approval above the limit, invoice arrives | S1, S2 | Matei | 1.5 |
-| [S4](s04-agent-cards-and-registry.md) | Landing pages, agent cards, registry | Supplier joins the network; registry verifies its card on its own domain | S0 | Robert | 2 |
-| [S5](s05-tokens-and-fingerprints.md) | Scoped tokens and fingerprints | A call without a valid token is refused; registry shows fingerprints only | S2, S4 | Matei | 2 |
-| [S6](s06-elasticsearch-search.md) | Elasticsearch supplier search | "Brazilian beans, delivers to me" finds suppliers with no shared keywords | S4 | Robert | 1.5 |
-| [S7](s07-messy-order-to-invoice.md) | Messy order to invoice | Pasted email or PDF becomes a draft invoice the owner sends | S1 | Robert (Matei pairs on Spring AI) | 1.5 |
-| [S8](s08-malicious-supplier.md) | Malicious supplier | A prompt-injected quote is blocked by the Java policy engine | S3 | Matei | 0.5 |
-| [S9](s09-reorder-and-reminders.md) | Reorder trigger and late-payer reminder | Low stock starts the RFQ by itself; an overdue invoice gets a reminder | S2, S1 | Either | 1.5 |
-| [S10](s10-demo-and-submission.md) | Demo, README, submission | The 3-minute video, the README run steps, the Devpost entry | all | Robert leads, both | 2 |
+| # | Slice | Demo moment | Depends on | Owner (suggested) | Days | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| [S0](s00-skeleton-and-contracts.md) | Skeleton and contracts | `docker compose up` brings up every service, all healthy | none | Matei | 1 | Done (#9) |
+| [S1](s01-invoice-to-paid.md) | Invoice to paid | Ledger row goes SENT to PAID live after a sandbox payment | S0 | Matei | 2 | Done (#19) |
+| [S2](s02-need-to-quotes.md) | Post a need, get quotes | Café types a need; quotes from 4 suppliers (roaster + 3 SIMULATED) stream into an AG Grid table. Decided Oct 29: quotes come back synchronously in the RFQ response; the RFQ carries no budget or priority. | S0 | Matei | 2 | Done (#20, #21) |
+| [S3](s03-counter-approve-invoice.md) | Counter, approve, invoice | One counter round, one-tap approval above the limit, invoice arrives | S1, S2 | Matei | 1.5 | Done |
+| [S4](s04-agent-cards-and-registry.md) | Landing pages, agent cards, registry | Supplier joins the network; registry verifies its card on its own domain | S0 | Robert | 2 | Planned |
+| [S5](s05-tokens-and-fingerprints.md) | Scoped tokens and fingerprints | A call without a valid token is refused; registry shows fingerprints only | S2, S4 | Matei | 2 | Planned |
+| [S6](s06-elasticsearch-search.md) | Elasticsearch supplier search | "Brazilian beans, delivers to me" finds suppliers with no shared keywords | S4 | Robert | 1.5 | Planned |
+| [S7](s07-messy-order-to-invoice.md) | Messy order to invoice | Pasted email or PDF becomes a draft invoice the owner sends | S1 | Robert (Matei pairs on Spring AI) | 1.5 | Planned |
+| [S8](s08-malicious-supplier.md) | Malicious supplier | A prompt-injected quote is blocked by the Java policy engine | S3 | Matei | 0.5 | Planned |
+| [S9](s09-reorder-and-reminders.md) | Reorder trigger and late-payer reminder | Low stock starts the RFQ by itself; an overdue invoice gets a reminder | S2, S1 | Either | 1.5 | Planned |
+| [S10](s10-demo-and-submission.md) | Demo, README, submission | The 3-minute video, the README run steps, the Devpost entry | all | Robert leads, both | 2 | Planned |
 
 Total about 17.5 person-days against about 16. The cut line is in [What to cut if we're behind](#what-to-cut-if-were-behind).
 

@@ -30,7 +30,7 @@ class QuoteRankingTest {
 		return new QuoteRow(UUID.randomUUID(), UUID.randomUUID(), 0, new QuoteRow.Supplier(domain, domain, false),
 				new Money(new BigDecimal(price), "USD"), BigDecimal.TEN, BigDecimal.TEN, Unit.KG,
 				new Money(new BigDecimal(price).multiply(BigDecimal.TEN), "USD"), delivery,
-				Instant.parse("2099-01-01T00:00:00Z"), partial, "", Instant.EPOCH);
+				Instant.parse("2099-01-01T00:00:00Z"), partial, "", Instant.EPOCH, null);
 	}
 
 	private static List<String> order(Priority priority) {

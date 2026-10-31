@@ -27,6 +27,7 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
@@ -61,8 +62,11 @@ public class NeedService {
 
 	private final Clock clock;
 
+	private final ApplicationEventPublisher publisher;
+
 	public NeedService(NeedRepository needs, PeerDirectory peers, AgentClient agents, AgentJson json,
-			ConversationLog conversations, DeskEventStream events, DeskProperties desk, Clock clock) {
+			ConversationLog conversations, DeskEventStream events, DeskProperties desk, Clock clock,
+			ApplicationEventPublisher publisher) {
 		this.needs = needs;
 		this.peers = peers;
 		this.agents = agents;
@@ -71,6 +75,7 @@ public class NeedService {
 		this.events = events;
 		this.desk = desk;
 		this.clock = clock;
+		this.publisher = publisher;
 	}
 
 	/**
@@ -145,7 +150,8 @@ public class NeedService {
 			case QuoteValidator.Accepted accepted -> {
 				conversations.received(accepted.envelope(), reply.body());
 				String note = accepted.quote().note().replaceAll("\\p{Cntrl}", " ").strip();
-				if (needs.insertQuote(need.id(), peer.domain(), accepted.quote(), note, reply.body())) {
+				if (needs.insertQuote(need.id(), peer.domain(), accepted.envelope().messageId(), accepted.quote(), note,
+						reply.body())) {
 					log.info("Quote from {} for need {}", peer.domain(), need.id());
 					publishQuotes(need.id());
 				}
@@ -162,8 +168,11 @@ public class NeedService {
 		}
 	}
 
-	/** Synchronized so two quotes arriving together can't publish an older list after a newer one. */
-	private synchronized void publishQuotes(UUID needId) {
+	/**
+	 * Sends the need's whole ranked list as {@code quote.received}. Synchronized so two changes arriving together
+	 * can't publish an older list after a newer one; S3 calls it as counters go out and come back.
+	 */
+	public synchronized void publishQuotes(UUID needId) {
 		events.publish(new DeskEvent("quote.received", Map.of("needId", needId, "quotes", quotes(needId))));
 	}
 
@@ -171,6 +180,8 @@ public class NeedService {
 		try {
 			needs.complete(needId);
 			needs.find(needId).ifPresent(row -> events.publish(new DeskEvent("need.updated", row)));
+			// S3's buyer agent starts its counter round from here.
+			publisher.publishEvent(new NeedCompleted(needId));
 		}
 		catch (RuntimeException ex) {
 			log.warn("Could not mark need {} complete: {}", needId, ex.getClass().getSimpleName());

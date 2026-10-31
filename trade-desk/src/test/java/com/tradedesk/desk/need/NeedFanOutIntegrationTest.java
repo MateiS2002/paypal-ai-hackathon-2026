@@ -49,7 +49,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = { "desk.id=cafe", "desk.name=Corner Café", "desk.domain=cafe.test",
 		"desk.location=37.7793,-122.4193", "desk.region=US-CA", "desk.time-zone=America/Los_Angeles",
-		"desk.demo-password=test-password", "desk.invoice-poll-interval=PT1H" })
+		"desk.demo-password=test-password", "desk.invoice-poll-interval=PT1H",
+		// S2 only: the S3 counter round has its own test (NegotiationIntegrationTest).
+		"desk.auto-counter=false" })
 class NeedFanOutIntegrationTest {
 
 	@Container

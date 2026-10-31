@@ -1,0 +1,12 @@
+{
+  "messageId": "f0e1d2c3-b4a5-4968-8776-655443322110",
+  "type": "reject",
+  "from": "roaster.test",
+  "to": "cafe.test",
+  "conversationId": "0b9e8d7c-6a5b-4c3d-8e2f-1a0b9c8d7e6f",
+  "sentAt": "2026-11-05T10:00:31Z",
+  "body": {
+    "rfqId": "b8c9d0e1-f2a3-4b4c-8d5e-6f7a8b9c0d1e",
+    "reason": "This quote expired at 2026-11-04T10:00:13Z. Ask us for a new quote."
+  }
+}
