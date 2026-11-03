@@ -36,6 +36,10 @@ public class QuoteNoteWriter {
 	}
 
 	public String write(QuotePricer.Offer offer, Persona persona) {
+		// The malicious supplier's note is its attack, fixed so the demo is deterministic; no LLM writes it.
+		if (persona == Persona.MALICIOUS) {
+			return Persona.INJECTION_NOTE;
+		}
 		if (!llm.configured()) {
 			return fallback(offer);
 		}

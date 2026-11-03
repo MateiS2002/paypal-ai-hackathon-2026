@@ -23,6 +23,7 @@ import com.tradedesk.desk.config.DeskProperties;
 import com.tradedesk.desk.contract.AgentEnvelope;
 import com.tradedesk.desk.events.DeskEvent;
 import com.tradedesk.desk.events.DeskEventStream;
+import com.tradedesk.desk.policy.PolicyDecision;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,9 +65,12 @@ public class NeedService {
 
 	private final ApplicationEventPublisher publisher;
 
+	private final QuoteScreen screen;
+
 	public NeedService(NeedRepository needs, PeerDirectory peers, AgentClient agents, AgentJson json,
 			ConversationLog conversations, DeskEventStream events, DeskProperties desk, Clock clock,
-			ApplicationEventPublisher publisher) {
+			ApplicationEventPublisher publisher, QuoteScreen screen) {
+		this.screen = screen;
 		this.needs = needs;
 		this.peers = peers;
 		this.agents = agents;
@@ -150,9 +154,12 @@ public class NeedService {
 			case QuoteValidator.Accepted accepted -> {
 				conversations.received(accepted.envelope(), reply.body());
 				String note = accepted.quote().note().replaceAll("\\p{Cntrl}", " ").strip();
+				// The policy engine looks at the quote before the grid does (S8): a blocked quote is shown as such.
+				PolicyDecision policy = screen.screen(request, peer.domain(), accepted.quote());
 				if (needs.insertQuote(need.id(), peer.domain(), accepted.envelope().messageId(), accepted.quote(), note,
-						reply.body())) {
-					log.info("Quote from {} for need {}", peer.domain(), need.id());
+						reply.body(), policy)) {
+					log.info("Quote from {} for need {}: policy engine says {}", peer.domain(), need.id(),
+							policy.outcome());
 					publishQuotes(need.id());
 				}
 			}
@@ -164,7 +171,31 @@ public class NeedService {
 				conversations.refused(dropped.envelope(), need.id(), reply.body(), dropped.problem());
 				log.warn("Dropped a malformed quote from {} for need {}: {}", peer.domain(), need.id(),
 						dropped.problem());
+				needs.insertRefusal(need.id(), peer.domain(), shown(dropped.problem()));
 			}
+		}
+	}
+
+	/** The refusal as the owner sees it: one clean line, at most {@link QuoteValidator#MAX_PROBLEM} characters. */
+	private static String shown(String problem) {
+		String line = problem.replaceAll("\\p{Cntrl}", " ").strip();
+		return line.length() > QuoteValidator.MAX_PROBLEM ? line.substring(0, QuoteValidator.MAX_PROBLEM - 1) + "…"
+				: line;
+	}
+
+	/**
+	 * Asks the policy engine about every quote of the need again, with the current policy and time, and publishes the
+	 * list if any verdict changed. The owner may have edited the limits since a quote arrived, and a counter changes a
+	 * quote's price.
+	 */
+	public void screenQuotes(UUID needId) {
+		NeedRow need = needs.find(needId).orElseThrow(NeedNotFoundException::new);
+		boolean changed = false;
+		for (QuoteRow quote : needs.quotes(needId, need.request().quantity())) {
+			changed |= needs.updatePolicy(quote.id(), screen.screen(need.request(), quote));
+		}
+		if (changed) {
+			publishQuotes(needId);
 		}
 	}
 

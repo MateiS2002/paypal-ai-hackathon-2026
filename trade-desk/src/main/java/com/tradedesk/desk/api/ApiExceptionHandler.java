@@ -5,6 +5,7 @@ import com.tradedesk.desk.agent.InvalidAgentMessageException;
 import com.tradedesk.desk.buying.ApprovalNotFoundException;
 import com.tradedesk.desk.buying.BuyingController;
 import com.tradedesk.desk.buying.NegotiationConflictException;
+import com.tradedesk.desk.buying.PolicyBlockedException;
 import com.tradedesk.desk.invoice.IdempotencyConflictException;
 import com.tradedesk.desk.invoice.InvalidInvoiceException;
 import com.tradedesk.desk.llm.LlmException;
@@ -54,6 +55,14 @@ public class ApiExceptionHandler {
 	@ExceptionHandler
 	ProblemDetail negotiationConflict(NegotiationConflictException ex) {
 		return problem(HttpStatus.CONFLICT, "Not possible now", ex.getMessage());
+	}
+
+	/** The policy engine said BLOCKED: the reasons are in {@code detail} and, as a list, in {@code reasons}. */
+	@ExceptionHandler
+	ProblemDetail policyBlocked(PolicyBlockedException ex) {
+		ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_CONTENT, "Blocked by policy", ex.getMessage());
+		problem.setProperty("reasons", ex.reasons());
+		return problem;
 	}
 
 	@ExceptionHandler

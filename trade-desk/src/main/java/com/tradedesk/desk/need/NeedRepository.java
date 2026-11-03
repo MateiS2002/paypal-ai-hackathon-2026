@@ -13,6 +13,8 @@ import com.tradedesk.desk.agent.QuoteBody;
 import com.tradedesk.desk.contract.Money;
 import com.tradedesk.desk.contract.Unit;
 import com.tradedesk.desk.invoice.InvoiceTotals;
+import com.tradedesk.desk.policy.PolicyDecision;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -74,15 +76,18 @@ public class NeedRepository {
 	 * @param quoteMessageId the quote envelope's {@code messageId}, which a counter or an accept names (S3)
 	 */
 	public boolean insertQuote(UUID needId, String supplierDomain, UUID quoteMessageId, QuoteBody quote, String note,
-			String raw) {
+			String raw, PolicyDecision policy) {
 		return jdbc.sql("""
 				insert into quote (id, need_id, supplier_domain, supplier_name, simulated, unit_price_minor, currency,
 				                   quantity, available_quantity, unit, delivery_date, valid_until, note, raw_message,
-				                   quote_message_id, rfq_message_id)
+				                   quote_message_id, rfq_message_id, policy_status, policy_reasons)
 				values (:id, :needId, :domain, :name, :simulated, :price, :currency, :quantity, :available, :unit,
-				        :deliveryDate, :validUntil, :note, :raw, :quoteMessageId, :rfqMessageId)
+				        :deliveryDate, :validUntil, :note, :raw, :quoteMessageId, :rfqMessageId, :policyStatus,
+				        :policyReasons)
 				on conflict (need_id, supplier_domain) do nothing
 				""")
+			.param("policyStatus", QuoteRow.PolicyStatus.of(policy.outcome()).name())
+			.param("policyReasons", reasons(policy))
 			.param("id", UUID.randomUUID())
 			.param("quoteMessageId", quoteMessageId)
 			.param("rfqMessageId", quote.rfqId())
@@ -100,6 +105,38 @@ public class NeedRepository {
 			.param("note", note)
 			.param("raw", raw)
 			.update() == 1;
+	}
+
+	/**
+	 * Stores the policy engine's latest verdict on a quote.
+	 * @return true if it differs from the stored one
+	 */
+	public boolean updatePolicy(UUID quoteId, PolicyDecision policy) {
+		return jdbc.sql("""
+				update quote set policy_status = :status, policy_reasons = :reasons
+				 where id = :id and (policy_status <> :status or policy_reasons <> :reasons)
+				""")
+			.param("status", QuoteRow.PolicyStatus.of(policy.outcome()).name())
+			.param("reasons", reasons(policy))
+			.param("id", quoteId)
+			.update() == 1;
+	}
+
+	/** Remembers that this supplier's answer to the need's RFQ was refused; a second one for the same supplier is ignored. */
+	public void insertRefusal(UUID needId, String supplierDomain, String reason) {
+		jdbc.sql("""
+				insert into need_refusal (need_id, supplier_domain, reason) values (:needId, :domain, :reason)
+				on conflict (need_id, supplier_domain) do nothing
+				""")
+			.param("needId", needId)
+			.param("domain", supplierDomain)
+			.param("reason", reason)
+			.update();
+	}
+
+	/** The engine's sentences as JSON; an {@code OK} quote has nothing to explain, so none are stored for it. */
+	private String reasons(PolicyDecision policy) {
+		return json.writeValueAsString(policy.outcome() == PolicyDecision.Outcome.AUTO_ACCEPT ? List.of() : policy.reasons());
 	}
 
 	/** Unranked; {@link QuoteRanking} orders them. */
@@ -162,7 +199,7 @@ public class NeedRepository {
 			.update();
 	}
 
-	private static QuoteRow quoteRow(ResultSet rs, BigDecimal requested) throws SQLException {
+	private QuoteRow quoteRow(ResultSet rs, BigDecimal requested) throws SQLException {
 		BigDecimal unitPrice = InvoiceTotals.fromMinor(rs.getLong("unit_price_minor"));
 		BigDecimal quantity = rs.getBigDecimal("quantity");
 		String currency = rs.getString("currency");
@@ -179,18 +216,30 @@ public class NeedRepository {
 				new Money(quantity.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP), currency),
 				rs.getObject("delivery_date", java.time.LocalDate.class), rs.getTimestamp("valid_until").toInstant(),
 				quantity.compareTo(requested) < 0, rs.getString("note"), rs.getTimestamp("received_at").toInstant(),
-				counter);
+				counter, QuoteRow.PolicyStatus.valueOf(rs.getString("policy_status")),
+				json.readValue(rs.getString("policy_reasons"), STRINGS));
 	}
 
+	private static final TypeReference<List<String>> STRINGS = new TypeReference<>() {
+	};
+
+	private static final TypeReference<List<NeedRow.Refusal>> REFUSALS = new TypeReference<>() {
+	};
+
 	private static final String SELECT_NEED = """
-			select n.*, (select count(*) from quote q where q.need_id = n.id) as quotes_received from need n
+			select n.*, (select count(*) from quote q where q.need_id = n.id) as quotes_received,
+			       (select coalesce(json_agg(json_build_object('domain', r.supplier_domain, 'reason', r.reason)
+			                                 order by r.created_at, r.supplier_domain), '[]')
+			          from need_refusal r where r.need_id = n.id)::text as refused
+			  from need n
 			""";
 
 	private NeedRow need(ResultSet rs, int n) throws SQLException {
 		return new NeedRow(rs.getObject("id", UUID.class),
 				json.readValue(rs.getString("request"), PurchaseRequest.class),
 				NeedRow.Status.valueOf(rs.getString("status")), rs.getInt("suppliers_asked"),
-				rs.getInt("quotes_received"), rs.getTimestamp("created_at").toInstant());
+				rs.getInt("quotes_received"), json.readValue(rs.getString("refused"), REFUSALS),
+				rs.getTimestamp("created_at").toInstant());
 	}
 
 	public record Stored(UUID id, String requestHash) {

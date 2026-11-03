@@ -20,6 +20,8 @@ docker compose up --build --wait
 
 Then open <http://localhost:8080>, choose **Café** or **Roaster**, and log in with username `cafe` or `roaster` and the `DESK_DEMO_PASSWORD` from `.env`.
 
+The copied `.env` has `COMPOSE_PROFILES=malicious`, which also starts a SIMULATED malicious supplier ("Totally Legit Beans") whose prompt-injected quote the café's policy engine blocks. Delete that line to run without it. If you ran an earlier version, run `docker compose down -v` once first: the new supplier's database is only created on a fresh volume.
+
 Everything runs against the **PayPal sandbox** only. Developer setup (JDK, Node, running services from an IDE): [docs/local-setup.md](docs/local-setup.md).
 
 ## Repository layout

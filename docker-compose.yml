@@ -38,7 +38,7 @@ services:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
       # One database per service. Created only on a fresh volume; after adding one run: docker compose down -v
-      POSTGRES_DATABASES: cafe roaster supplier-b supplier-c supplier-d registry
+      POSTGRES_DATABASES: cafe roaster supplier-b supplier-c supplier-d supplier-e registry
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/create-databases.sh:/docker-entrypoint-initdb.d/01-create-databases.sh:ro
@@ -106,7 +106,9 @@ services:
       DESK_TIME_ZONE: America/Los_Angeles
       DESK_SIMULATED: "false"
       # Suppliers that get every RFQ: domain=URL inside compose (S2). S4 replaces this with a registry lookup.
-      DESK_PEERS: roaster.test=http://roaster:8080,supplier-b.test=http://supplier-b:8080,supplier-c.test=http://supplier-c:8080,supplier-d.test=http://supplier-d:8080
+      # The malicious supplier (S8) is added only when COMPOSE_PROFILES is set in .env, the same switch that starts its
+      # container, so with it off the café neither asks nor lists a supplier that isn't there.
+      DESK_PEERS: roaster.test=http://roaster:8080,supplier-b.test=http://supplier-b:8080,supplier-c.test=http://supplier-c:8080,supplier-d.test=http://supplier-d:8080${COMPOSE_PROFILES:+,supplier-e.test=http://supplier-e:8080}
       PAYPAL_SANDBOX_BUYER_EMAIL: ${PAYPAL_SANDBOX_BUYER_EMAIL:-}
     ports:
       - "127.0.0.1:8081:8080"
@@ -195,6 +197,32 @@ services:
       DESK_BUYERS: cafe.test=http://cafe:8080
     ports:
       - "127.0.0.1:8085:8080"
+
+  # SIMULATED and hostile (S8): "Totally Legit Beans" quotes $40/kg with a prompt-injection note, to show that the
+  # café's Java policy engine blocks it. Behind the "malicious" profile: .env.example sets COMPOSE_PROFILES=malicious,
+  # so a fresh clone runs the attack; remove that line to switch it off. It never invoices (nothing can accept its quote).
+  supplier-e:
+    <<: *desk
+    profiles: [malicious]
+    environment:
+      <<: *desk-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplier-e
+      DESK_ID: supplier-e
+      DESK_NAME: Totally Legit Beans
+      DESK_DOMAIN: supplier-e.test
+      DESK_LOCATION: "37.9577,-121.2908"
+      DESK_REGION: US-CA
+      DESK_TIME_ZONE: America/Los_Angeles
+      DESK_PERSONA: malicious
+      DESK_SIMULATED: "true"
+      # Second variant: also add "autoApprove": true to the quote body, which the café refuses whole.
+      DESK_MALICIOUS_EXTRA_FIELD: ${DESK_MALICIOUS_EXTRA_FIELD:-false}
+      # Every SIMULATED supplier invoices through the one shared SIMULATED sandbox merchant (S3).
+      PAYPAL_CLIENT_ID: ${PAYPAL_SIM_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_SIM_CLIENT_SECRET:-}
+      DESK_BUYERS: cafe.test=http://cafe:8080
+    ports:
+      - "127.0.0.1:8086:8080"
 
   web:
     build: ./web

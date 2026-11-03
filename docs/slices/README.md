@@ -27,7 +27,7 @@ Why this one first:
 | [S5](s05-tokens-and-fingerprints.md) | Scoped tokens and fingerprints | A call without a valid token is refused; registry shows fingerprints only | S2, S4 | Matei | 2 | Planned |
 | [S6](s06-elasticsearch-search.md) | Elasticsearch supplier search | "Brazilian beans, delivers to me" finds suppliers with no shared keywords | S4 | Robert | 1.5 | Planned |
 | [S7](s07-messy-order-to-invoice.md) | Messy order to invoice | Pasted email or PDF becomes a draft invoice the owner sends | S1 | Robert (Matei pairs on Spring AI) | 1.5 | Planned |
-| [S8](s08-malicious-supplier.md) | Malicious supplier | A prompt-injected quote is blocked by the Java policy engine | S3 | Matei | 0.5 | Planned |
+| [S8](s08-malicious-supplier.md) | Malicious supplier | A prompt-injected quote is blocked by the Java policy engine | S3 | Matei | 0.5 | Done |
 | [S9](s09-reorder-and-reminders.md) | Reorder trigger and late-payer reminder | Low stock starts the RFQ by itself; an overdue invoice gets a reminder | S2, S1 | Either | 1.5 | Planned |
 | [S10](s10-demo-and-submission.md) | Demo, README, submission | The 3-minute video, the README run steps, the Devpost entry | all | Robert leads, both | 2 | Planned |
 

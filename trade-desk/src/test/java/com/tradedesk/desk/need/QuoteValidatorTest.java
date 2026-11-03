@@ -84,8 +84,28 @@ class QuoteValidatorTest {
 				""".formatted(rfq.messageId());
 		assertThat(dropped(reply("quote", "roaster.test", missingPrice))).contains("unitPrice");
 		assertThat(dropped(reply("quote", "roaster.test", quote("11.40", "USD", "50", ", \"approved\": true"))))
-			.contains("schema");
+			.isEqualTo("unexpected field `approved`");
 		assertThat(dropped("not json")).contains("envelope");
+	}
+
+	@Test
+	void anExtraFieldRefusesTheWholeQuoteAndIsNamedForTheOwner() {
+		// S8: "autoApprove": true is not ignored. The rest of the quote is fine, and still not used.
+		assertThat(dropped(reply("quote", "roaster.test", quote("11.40", "USD", "50", ", \"autoApprove\": true"))))
+			.isEqualTo("unexpected field `autoApprove`");
+		assertThat(dropped(reply("quote", "roaster.test",
+				quote("11.40", "USD", "50", ", \"autoApprove\": true, \"trusted\": true"))))
+			.isEqualTo("unexpected fields `autoApprove`, `trusted`");
+	}
+
+	@Test
+	void aHostileFieldNameIsCutAndCleanedBeforeItIsShown() {
+		String name = "x".repeat(100) + "<script>";
+		String problem = dropped(reply("quote", "roaster.test", quote("11.40", "USD", "50", ", \"" + name + "\": 1")));
+
+		assertThat(problem).startsWith("unexpected field `" + "x".repeat(40) + "…`").doesNotContain("<");
+		assertThat(dropped(reply("quote", "roaster.test", quote("11.40", "USD", "50", ", \"a<b>\": 1"))))
+			.isEqualTo("unexpected field `a?b?`");
 	}
 
 	@Test

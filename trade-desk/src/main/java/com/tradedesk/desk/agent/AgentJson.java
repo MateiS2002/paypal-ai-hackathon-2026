@@ -1,6 +1,11 @@
 package com.tradedesk.desk.agent;
 
+import java.lang.reflect.RecordComponent;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.tradedesk.desk.contract.AgentEnvelope;
 import tools.jackson.core.JacksonException;
@@ -16,6 +21,10 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class AgentJson {
+
+	private static final int MAX_FIELD_NAME = 40;
+
+	private static final int MAX_FIELD_NAMES = 3;
 
 	private final JsonMapper strict = JsonMapper.builder()
 		.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
@@ -43,6 +52,25 @@ public class AgentJson {
 		catch (JacksonException | IllegalArgumentException ex) {
 			return Optional.empty();
 		}
+	}
+
+	/**
+	 * The names of the fields in {@code body} that {@code type} (a record) doesn't have, for telling the owner why a
+	 * message was refused. Only for display: the strict parse in {@link #body} is what refuses the message. Each name
+	 * is cut and cleaned, because it comes from the sender.
+	 */
+	public List<String> unknownFields(JsonNode body, Class<?> type) {
+		if (body == null || !body.isObject() || !type.isRecord()) {
+			return List.of();
+		}
+		Set<String> known = Arrays.stream(type.getRecordComponents()).map(RecordComponent::getName)
+			.collect(Collectors.toSet());
+		return body.propertyNames().stream()
+			.filter(name -> !known.contains(name))
+			.map(name -> name.replaceAll("[^A-Za-z0-9_.-]", "?"))
+			.map(name -> name.length() > MAX_FIELD_NAME ? name.substring(0, MAX_FIELD_NAME) + "…" : name)
+			.limit(MAX_FIELD_NAMES)
+			.toList();
 	}
 
 	public String write(Object value) {

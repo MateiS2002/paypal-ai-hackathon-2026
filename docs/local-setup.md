@@ -51,7 +51,7 @@ Open <http://localhost:8080>, pick **Café** or **Roaster**, and log in with use
 | `docker compose down` | Stop everything, keep the data. |
 | `docker compose down -v` | Stop and **delete** the databases and search index (needed after adding a database name to `docker-compose.yml`). |
 
-Ports for debugging (all on `127.0.0.1`): frontend 8080, café 8081, roaster 8082, SIMULATED suppliers 8083 to 8085, registry 8090, Postgres 5432 (user `postgres`), Elasticsearch 9200 (user `elastic`). Full list in [contracts/README.md](../contracts/README.md).
+Ports for debugging (all on `127.0.0.1`): frontend 8080, café 8081, roaster 8082, SIMULATED suppliers 8083 to 8085, the SIMULATED malicious supplier 8086 (only with `COMPOSE_PROFILES=malicious`), registry 8090, Postgres 5432 (user `postgres`), Elasticsearch 9200 (user `elastic`). Full list in [contracts/README.md](../contracts/README.md).
 
 ## 4. Day-to-day development
 

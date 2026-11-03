@@ -44,6 +44,9 @@ import org.springframework.stereotype.Service;
  * <p>The LLM proposes counter targets ({@link CounterPlanner}, clamped in Java) and writes the reason
  * ({@link RecommendationWriter}, discarded if it argues for anyone else). Java picks the winner with S2's
  * {@link QuoteRanking} among quotes still open, and {@link OrderDesk} puts it to the policy engine.
+ *
+ * <p>A quote the policy engine blocks (S8, for example a $40/kg price above the café's maximum) is out of the deal: it
+ * is never countered and never picked, whatever its note says. The note is supplier text and no prompt here carries it.
  */
 @Service
 public class Negotiator {
@@ -166,8 +169,10 @@ public class Negotiator {
 	}
 
 	private void counterRound(NeedRow need) {
+		// The owner may have changed the limits since the quotes arrived; a quote the engine blocks is out of the deal.
+		needService.screenQuotes(need.id());
 		Instant now = clock.instant();
-		List<QuoteRow> top = open(needService.quotes(need.id()), now).stream().limit(COUNTERED).toList();
+		List<QuoteRow> top = dealable(needService.quotes(need.id()), now).stream().limit(COUNTERED).toList();
 		Map<UUID, BigDecimal> targets = planner.plan(need.request(), top, policies.get());
 		List<CompletableFuture<Void>> counters = top.stream()
 			.filter(quote -> targets.containsKey(quote.id()))
@@ -271,7 +276,9 @@ public class Negotiator {
 			needService.publishQuotes(needId);
 		}
 		// A quote whose counter got no answer (or a dropped one) may have been replaced by the supplier: never pick it.
-		List<QuoteRow> pickable = open(needService.quotes(needId), clock.instant()).stream()
+		// A counter changes a price, and the owner may have changed the limits: ask the policy engine again first.
+		needService.screenQuotes(needId);
+		List<QuoteRow> pickable = dealable(needService.quotes(needId), clock.instant()).stream()
 			.filter(q -> q.counter() == null || q.counter().outcome() != QuoteRow.Counter.Outcome.NO_ANSWER)
 			.toList();
 		List<QuoteRow> ranked = QuoteRanking.rank(pickable, need.request().priority());
@@ -297,6 +304,14 @@ public class Negotiator {
 	/** Quotes still within their {@code validUntil}, in their current order. */
 	static List<QuoteRow> open(List<QuoteRow> quotes, Instant now) {
 		return quotes.stream().filter(q -> q.validUntil().isAfter(now)).toList();
+	}
+
+	/**
+	 * Quotes that can still be countered or picked (S8): within their {@code validUntil} and not blocked by the policy
+	 * engine. A blocked quote is never countered, never recommended and never becomes an approval.
+	 */
+	static List<QuoteRow> dealable(List<QuoteRow> quotes, Instant now) {
+		return open(quotes, now).stream().filter(q -> !q.blocked()).toList();
 	}
 
 	@PreDestroy
