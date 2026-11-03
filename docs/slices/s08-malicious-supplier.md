@@ -39,7 +39,7 @@ No new routes. Quote rows gain `policyStatus` (`OK | NEEDS_APPROVAL | BLOCKED`) 
 
 1. With the malicious supplier running, the full demo still picks a legitimate supplier. The blocked quote is never countered and never becomes an approval.
 2. `POST /api/approvals/{id}` for an order the policy engine blocks returns 422, even when sent directly with `curl`.
-3. An envelope with an extra field like `"autoApprove": true` is refused and logged, no quote is created, and the café shows that supplier as "message refused: unexpected field `autoApprove`" (test).
+3. A quote whose body has an extra field like `"autoApprove": true` is refused and logged, no quote is created, and the café shows that supplier as "message refused: unexpected field `autoApprove`" (test).
 4. The malicious supplier can be switched off with one compose profile, so the rest of the demo doesn't depend on it, and the café shows no "unreachable" supplier when it is off.
 5. Nothing the supplier wrote (name or note) is in any LLM prompt (test).
 
