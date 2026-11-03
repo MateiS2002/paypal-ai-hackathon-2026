@@ -302,7 +302,7 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 | `200` | Decided. The body is the approval. On `APPROVE` the policy engine checks the order again with the current policy and time first; `order` is then `SENDING` and the result arrives as `recommendation.updated` and `payable.updated` events. |
 | `400` | A missing or unknown `decision`. |
 | `404` | Unknown approval. |
-| `409` | Not `PENDING` (already decided, or a double tap) and not an unanswered order to retry. Nothing is sent. |
+| `409` | Not `PENDING` (already decided, or a double tap) and not an unanswered order to retry. `APPROVE` on a `BLOCKED` approval is `422` instead (below); `REJECT` on one is `409`. Nothing is sent. |
 | `422` | (S8) `APPROVE` on an order the policy engine says is `BLOCKED`: either the approval was stored as `BLOCKED`, or the engine now says `BLOCKED` for a `PENDING` one or an unanswered order to retry (for example the quote expired or the limits changed). The problem body's `detail` is the engine's reasons and its `reasons` property is the same list as an array of strings. A `PENDING` approval is then stored as `BLOCKED` with the new reasons; an unanswered order stays `UNANSWERED`. Nothing is sent, and no request, however it is sent, can make the café accept a blocked order. |
 
 ### Payable row
