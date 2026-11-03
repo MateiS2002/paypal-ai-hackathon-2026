@@ -2,7 +2,7 @@
 
 Every desk exposes `POST /agent/messages`. The request and the response are both an [envelope](envelope.schema.json); this file defines each type's `body`. Money is always [Money](money.schema.json), quantities are decimal strings with up to 3 decimal places, and dates are ISO 8601 (`2026-11-07`, or UTC date-times).
 
-The receiver treats every envelope as untrusted input: it parses the body into a typed record, validates it, and drops or rejects anything that doesn't match. Until S5, `from` is only claimed, not proven (see [S5](../docs/slices/s05-tokens-and-fingerprints.md)).
+The receiver treats every envelope as untrusted input: it parses the body into a typed record, validates it, and drops or rejects anything that doesn't match. The parse is strict (S8): a body with a field the type doesn't list, for example `"autoApprove": true` on a `quote`, doesn't match, so the whole message is refused, logged with the field's name and shown to the owner; the extra field is never silently ignored and nothing in the message is used. Until S5, `from` is only claimed, not proven (see [S5](../docs/slices/s05-tokens-and-fingerprints.md)).
 
 ## Transport
 

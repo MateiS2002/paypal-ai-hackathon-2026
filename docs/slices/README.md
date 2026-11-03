@@ -22,7 +22,7 @@ Why this one first:
 | [S0](s00-skeleton-and-contracts.md) | Skeleton and contracts | `docker compose up` brings up every service, all healthy | none | Matei | 1 | Done (#9) |
 | [S1](s01-invoice-to-paid.md) | Invoice to paid | Ledger row goes SENT to PAID live after a sandbox payment | S0 | Matei | 2 | Done (#19) |
 | [S2](s02-need-to-quotes.md) | Post a need, get quotes | Café types a need; quotes from 4 suppliers (roaster + 3 SIMULATED) stream into an AG Grid table. Decided Oct 29: quotes come back synchronously in the RFQ response; the RFQ carries no budget or priority. | S0 | Matei | 2 | Done (#20, #21) |
-| [S3](s03-counter-approve-invoice.md) | Counter, approve, invoice | One counter round, one-tap approval above the limit, invoice arrives | S1, S2 | Matei | 1.5 | Done |
+| [S3](s03-counter-approve-invoice.md) | Counter, approve, invoice | One counter round, one-tap approval above the limit, invoice arrives | S1, S2 | Matei | 1.5 | Done (#23) |
 | [S4](s04-agent-cards-and-registry.md) | Landing pages, agent cards, registry | Supplier joins the network; registry verifies its card on its own domain | S0 | Robert | 2 | Planned |
 | [S5](s05-tokens-and-fingerprints.md) | Scoped tokens and fingerprints | A call without a valid token is refused; registry shows fingerprints only | S2, S4 | Matei | 2 | Planned |
 | [S6](s06-elasticsearch-search.md) | Elasticsearch supplier search | "Brazilian beans, delivers to me" finds suppliers with no shared keywords | S4 | Robert | 1.5 | Planned |

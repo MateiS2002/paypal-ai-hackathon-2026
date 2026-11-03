@@ -35,7 +35,7 @@ Every desk (café, roaster, simulated suppliers) is the same `trade-desk` app an
 | `GET /api/needs/{id}/quotes` | session | S2 | Every quote for the need that passed the desk's checks, ranked best first: an array of [quote rows](#quote-row). Quotes past their `validUntil` are included, the same as in `quote.received`; malformed replies never are. `404` for an unknown need. |
 | `POST /api/needs/{id}/counter` | session | S3 | Starts the need's one counter round if it hasn't started (the desk also starts it by itself once the need is `COMPLETE`). No body. `202` with the [recommendation](#recommendation) when this call started it, `200` with it when it had already started. `409` while the need is still collecting quotes, or when it has no open quote to counter (none arrived, or every one has expired). |
 | `GET /api/needs/{id}/recommendation` | session | S3 | The need's [recommendation](#recommendation). `404` for an unknown need. |
-| `POST /api/approvals/{id}` | session | S3 | `{"decision": "APPROVE" \| "REJECT"}` on a `PENDING` [approval](#approval). `APPROVE` also retries an `APPROVED` or `AUTO_APPROVED` approval whose `order` is `UNANSWERED`. See [Approving](#approving). |
+| `POST /api/approvals/{id}` | session | S3 | `{"decision": "APPROVE" \| "REJECT"}` on a `PENDING` [approval](#approval). `APPROVE` also retries an `APPROVED` or `AUTO_APPROVED` approval whose `order` is `UNANSWERED`. See [Approving](#approving). `422` when `APPROVE` finds the order blocked by the policy (S8); `REJECT` on a blocked approval is `409`. There is no route that accepts a quote by id: an `accept` only ever follows an approval the policy engine created. |
 | `GET /api/payables` | session | S3 | Invoices this desk has to pay, newest first: an array of [payable rows](#payable-row). |
 | `GET /api/policy` | session | S3 | The desk's [policy](#policy): the limits its policy engine checks. |
 | `PUT /api/policy` | session | S3 | Replaces the policy. `200` with the stored policy, `400` if a rule below is broken. Applies to every decision made after it, including an approval tapped later. |
@@ -183,11 +183,16 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
   "status": "COLLECTING",
   "suppliersAsked": 4,
   "quotesReceived": 1,
+  "refused": [
+    { "domain": "supplier-e.test", "reason": "unexpected field `autoApprove`" }
+  ],
   "createdAt": "2026-11-03T10:00:00Z"
 }
 ```
 
 `status` is `COLLECTING` while RFQs are out and `COMPLETE` once every supplier has answered, refused or timed out.
+
+`refused` (S8) lists the suppliers whose answer to this need's RFQ the café read as an envelope but refused as a quote because it didn't fit the quote schema exactly or broke a rule, with the reason (at most 200 characters). The café parses every agent message strictly, so an extra field such as `"autoApprove": true` is not ignored: the whole message is refused, no quote is created, and the reason names the field (``unexpected field `autoApprove` ``). The UI shows it as "message refused: ...". Replies that never arrived (unreachable, timed out) are not listed. Empty when none was refused.
 
 ### Quote row
 
@@ -206,24 +211,28 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
   "validUntil": "2026-11-04T10:00:00Z",
   "partial": false,
   "note": "Fresh Cerrado lot, ships from Oakland in two days.",
-  "receivedAt": "2026-11-03T10:00:01Z"
+  "receivedAt": "2026-11-03T10:00:01Z",
+  "policyStatus": "OK",
+  "policyReasons": []
 }
 ```
 
 - `total` is `quantity × unitPrice` rounded half-up to the cent, computed by the café.
 - `partial` is `true` when the supplier offers less than the requested quantity.
-- `rank` starts at 1. Full offers always rank above partial ones; within each group:
+- `rank` starts at 1. `BLOCKED` quotes (S8) always rank last, then full offers rank above partial ones; within each group:
   - `PRICE`: lowest unit price first, then earliest delivery.
   - `SPEED`: earliest delivery first, then lowest unit price.
-  - `BALANCED`: lowest score first, where score = half the unit price's position between the cheapest and dearest quote (0 to 1) plus half the delivery date's position between the earliest and latest (0 to 1); ties by unit price. A position is 0 when every quote has the same value (so a single quote, or quotes that share a price or a date, still get a score).
+  - `BALANCED`: lowest score first, where score = half the unit price's position between the cheapest and dearest quote (0 to 1) plus half the delivery date's position between the earliest and latest (0 to 1), both measured over the quotes that aren't `BLOCKED`; ties by unit price. A position is 0 when every quote has the same value (so a single quote, or quotes that share a price or a date, still get a score).
   - Any remaining tie is broken by `supplier.domain`, so the order never depends on arrival time.
 - `supplier.name` and `supplier.simulated` are what the supplier claimed in its quote (verified from S4).
 - `note` is display text written by the supplier's LLM; the café never reads numbers from it.
+- `policyStatus` and `policyReasons` (S8) are the policy engine's verdict on this quote as the café would accept it, worked out by Java when the quote is stored, again when a counter changes it, and again when the counter round starts and ends (the owner may have edited the policy). `policyStatus` is `OK` (the engine would accept it at once), `NEEDS_APPROVAL` (the owner would have to tap Approve, for example a total above the approval limit or a partial offer) or `BLOCKED` (the engine would never accept it, for example a unit price above `maxUnitPrice`). `policyReasons` are the engine's own sentences, in rule order: empty for `OK`, at least one otherwise. Both are a snapshot from the last of those checks: `PUT /api/policy` doesn't recompute stored rows, and `POST /api/approvals/{id}` always asks the engine again with the current policy (`422` if it now says `BLOCKED`). A `BLOCKED` quote stays in the list so the owner can see it, but it ranks below every other quote, is never countered, never recommended and never becomes an approval, and `POST /api/approvals/{id}` has no way to accept it.
+- `note` is untrusted text written by the supplier. The UI shows it as such, and it never reaches the buyer agent's LLM: the counter and recommendation prompts carry only Java's numbers and the labels `S1`, `S2`, `S3`.
 - `counter` (S3) is `null` until the need's counter round reaches this quote, then `{"targetUnitPrice": Money, "previousUnitPrice": Money, "outcome"}`. `outcome` is `PENDING` while the counter is out, then `MET`, `PARTLY_MET`, `HELD` or `NO_ANSWER` (unreachable, timed out, or a revised quote the café dropped). Once the answer is in, `unitPrice`, `total`, `validUntil` and `note` are the revised quote's and `rank` is recomputed; `previousUnitPrice` keeps the price before the counter.
 
 ## Counter, approve, invoice (S3)
 
-Once every supplier has answered the RFQ, refused it or timed out (the need is `COMPLETE`), the café's buyer agent counters its top 3 quotes once ([agent-messages.md](agent-messages.md#negotiation-s3)). The counter is automatic and shown as it happens: each quote row's `counter` moves from `PENDING` to its outcome in `quote.received` events. Then Java ranks the revised quotes with the S2 ranking, picks rank 1 as the winner, and the policy engine decides:
+Once every supplier has answered the RFQ, refused it or timed out (the need is `COMPLETE`), the café's buyer agent counters once the top 3 quotes that aren't `BLOCKED` ([agent-messages.md](agent-messages.md#negotiation-s3)). The counter is automatic and shown as it happens: each quote row's `counter` moves from `PENDING` to its outcome in `quote.received` events. Then Java ranks the revised quotes with the S2 ranking, picks the best quote that isn't `BLOCKED` as the winner, and the policy engine decides:
 
 | Decision | What happens |
 | --- | --- |
@@ -248,8 +257,8 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 
 | Field | Rule |
 | --- | --- |
-| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote is eligible to pick (none arrived, all expired, or every remaining one ended in `NO_ANSWER`; a quote that was never countered stays eligible). |
-| `pick` | The [quote row](#quote-row) Java ranked first among quotes still within `validUntil` whose counter didn't end in `NO_ANSWER` (the supplier may have replaced such a quote, so it may no longer be acceptable), or `null` before `READY`. |
+| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote is eligible to pick (none arrived, all expired, every remaining one is `BLOCKED` (S8) or ended in `NO_ANSWER`; a quote that was never countered stays eligible). |
+| `pick` | The [quote row](#quote-row) Java ranked first among quotes that aren't `BLOCKED`, are still within `validUntil` and whose counter didn't end in `NO_ANSWER` (the supplier may have replaced such a quote, so it may no longer be acceptable), or `null` before `READY`. |
 | `reason` | One line, at most 200 characters, display text only. `null` before `READY`. |
 | `reasonSource` | `AI` when the buyer agent wrote the reason and it passed the checks, `TEMPLATE` when the desk's code wrote it (no LLM, a failed call, or an answer that failed the checks: it picked another supplier, didn't start with `S1:`, used an unknown label or was too long). |
 | `approval` | The need's [approval](#approval), or `null` before `READY`. The desk publishes `READY` only after the policy engine's decision is stored, so a `READY` recommendation carries its approval. |
@@ -293,7 +302,8 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 | `200` | Decided. The body is the approval. On `APPROVE` the policy engine checks the order again with the current policy and time first; `order` is then `SENDING` and the result arrives as `recommendation.updated` and `payable.updated` events. |
 | `400` | A missing or unknown `decision`. |
 | `404` | Unknown approval. |
-| `409` | Not `PENDING` (already decided, or a double tap) and not an unanswered order to retry, or on `APPROVE` the policy engine now says `BLOCKED` (for example the quote expired or the limits changed). A `PENDING` approval is then stored as `BLOCKED` with the new reasons; an unanswered order stays `UNANSWERED`. Nothing is sent. |
+| `409` | Not `PENDING` (already decided, or a double tap) and not an unanswered order to retry. `APPROVE` on a `BLOCKED` approval is `422` instead (below); `REJECT` on one is `409`. Nothing is sent. |
+| `422` | (S8) `APPROVE` on an order the policy engine says is `BLOCKED`: either the approval was stored as `BLOCKED`, or the engine now says `BLOCKED` for a `PENDING` one or an unanswered order to retry (for example the quote expired or the limits changed). The problem body's `detail` is the engine's reasons and its `reasons` property is the same list as an array of strings. A `PENDING` approval is then stored as `BLOCKED` with the new reasons; an unanswered order stays `UNANSWERED`. Nothing is sent, and no request, however it is sent, can make the café accept a blocked order. |
 
 ### Payable row
 
