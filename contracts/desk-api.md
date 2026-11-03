@@ -219,10 +219,10 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
 
 - `total` is `quantity × unitPrice` rounded half-up to the cent, computed by the café.
 - `partial` is `true` when the supplier offers less than the requested quantity.
-- `rank` starts at 1. Full offers always rank above partial ones; within each group:
+- `rank` starts at 1. `BLOCKED` quotes (S8) always rank last, then full offers rank above partial ones; within each group:
   - `PRICE`: lowest unit price first, then earliest delivery.
   - `SPEED`: earliest delivery first, then lowest unit price.
-  - `BALANCED`: lowest score first, where score = half the unit price's position between the cheapest and dearest quote (0 to 1) plus half the delivery date's position between the earliest and latest (0 to 1); ties by unit price. A position is 0 when every quote has the same value (so a single quote, or quotes that share a price or a date, still get a score).
+  - `BALANCED`: lowest score first, where score = half the unit price's position between the cheapest and dearest quote (0 to 1) plus half the delivery date's position between the earliest and latest (0 to 1), both measured over the quotes that aren't `BLOCKED`; ties by unit price. A position is 0 when every quote has the same value (so a single quote, or quotes that share a price or a date, still get a score).
   - Any remaining tie is broken by `supplier.domain`, so the order never depends on arrival time.
 - `supplier.name` and `supplier.simulated` are what the supplier claimed in its quote (verified from S4).
 - `note` is display text written by the supplier's LLM; the café never reads numbers from it.
@@ -232,7 +232,7 @@ The café posts a need in plain words. Its buyer agent turns the text into a pur
 
 ## Counter, approve, invoice (S3)
 
-Once every supplier has answered the RFQ, refused it or timed out (the need is `COMPLETE`), the café's buyer agent counters its top 3 quotes once ([agent-messages.md](agent-messages.md#negotiation-s3)). The counter is automatic and shown as it happens: each quote row's `counter` moves from `PENDING` to its outcome in `quote.received` events. Then Java ranks the revised quotes with the S2 ranking, picks rank 1 as the winner, and the policy engine decides:
+Once every supplier has answered the RFQ, refused it or timed out (the need is `COMPLETE`), the café's buyer agent counters once the top 3 quotes that aren't `BLOCKED` ([agent-messages.md](agent-messages.md#negotiation-s3)). The counter is automatic and shown as it happens: each quote row's `counter` moves from `PENDING` to its outcome in `quote.received` events. Then Java ranks the revised quotes with the S2 ranking, picks the best quote that isn't `BLOCKED` as the winner, and the policy engine decides:
 
 | Decision | What happens |
 | --- | --- |
@@ -257,7 +257,7 @@ The LLM proposes counter targets and writes the one-line reason, nothing else. J
 
 | Field | Rule |
 | --- | --- |
-| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote is eligible to pick (none arrived, all expired, or every remaining one ended in `NO_ANSWER`; a quote that was never countered stays eligible). |
+| `stage` | `WAITING_FOR_QUOTES` while the need is `COLLECTING`, `READY_TO_COUNTER` once it is `COMPLETE` but no round has started, `COUNTERING` while counters are out, `READY` once there is a pick, `NO_OFFER` when no quote is eligible to pick (none arrived, all expired, every remaining one is `BLOCKED` (S8) or ended in `NO_ANSWER`; a quote that was never countered stays eligible). |
 | `pick` | The [quote row](#quote-row) Java ranked first among quotes still within `validUntil` whose counter didn't end in `NO_ANSWER` (the supplier may have replaced such a quote, so it may no longer be acceptable), or `null` before `READY`. |
 | `reason` | One line, at most 200 characters, display text only. `null` before `READY`. |
 | `reasonSource` | `AI` when the buyer agent wrote the reason and it passed the checks, `TEMPLATE` when the desk's code wrote it (no LLM, a failed call, or an answer that failed the checks: it picked another supplier, didn't start with `S1:`, used an unknown label or was too long). |
